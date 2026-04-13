@@ -1,6 +1,5 @@
 import discord
 from discord.ext import commands
-import difflib # Ye library milti-julti commands dhoondne ke liye hai
 
 class ErrorHandler(commands.Cog):
     def __init__(self, bot):
@@ -8,40 +7,50 @@ class ErrorHandler(commands.Cog):
 
     @commands.Cog.listener()
     async def on_command_error(self, ctx, error):
-        # 1. Agar command dhoondne mein galti ho (CommandNotFound)
-        if isinstance(error, commands.CommandNotFound):
-            # User ne jo galat command likhi hai use nikalna
-            cmd_invoked = ctx.invoked_with
-            # Bot ki saari available commands ki list
-            all_commands = [cmd.name for cmd in self.bot.commands]
+        # 1. Missing Arguments Error (Adhoori Command)
+        if isinstance(error, commands.MissingRequiredArgument):
+            cmd = ctx.command.name
+            param = error.param.name # Konsa argument missing hai (user, time etc)
             
-            # Difflib se milti-julti commands dhoondna (Advanced Logic)
-            matches = difflib.get_close_matches(cmd_invoked, all_commands, n=1, cutoff=0.6)
+            # Har command ke liye photo jaisa Usage define karna
+            usage_dict = {
+                "mute": "!mute <user> <time> [reason]",
+                "ban": "!ban <user> [reason]",
+                "kick": "!kick <user> [reason]",
+                "warn": "!warn <user> [reason]",
+                "clear": "!clear <amount>",
+                "afk": "!afk [reason]"
+            }
 
-            if matches:
-                suggested_cmd = matches[0]
-                embed = discord.Embed(
-                    title="❌ Command Not Found",
-                    description=f"Did you mean `!{suggested_cmd}`?\nPlease type the full command correctly.",
-                    color=discord.Color.orange()
-                )
-                await ctx.send(embed=embed, delete_after=10)
-            else:
-                # Agar koi milti-julti command na mile
-                await ctx.send(f"❌ Unknown command. Type `!help` for a list of commands.", delete_after=5)
+            usage = usage_dict.get(cmd, f"!{cmd} <arguments>")
 
-        # 2. Agar user ke paas Permission na ho
+            # Photo jaisa response formatting
+            error_msg = (
+                f"**Missing required argument: {param}**\n"
+                f"Usage: `{usage}`"
+            )
+            await ctx.send(error_msg)
+
+        # 2. Member Not Found (Galat user mention karne par)
+        elif isinstance(error, commands.MemberNotFound):
+            await ctx.send(f"❌ **Could not find that user.** Please mention a valid member.")
+
+        # 3. Bad Argument (Number ki jagah text daalne par)
+        elif isinstance(error, commands.BadArgument):
+            await ctx.send(f"❌ **Invalid argument provided.** Please check the command usage.")
+
+        # 4. Missing Permissions (Moderator nahi hai)
         elif isinstance(error, commands.MissingPermissions):
-            await ctx.send(f"🚫 You don't have permission to use this command!", delete_after=5)
+            await ctx.send(f"🚫 **You don't have permission to use `!{ctx.command.name}`!**")
 
-        # 3. Agar koi argument miss ho (e.g. !ban likha par user mention nahi kiya)
-        elif isinstance(error, commands.MissingRequiredArgument):
-            await ctx.send(f"⚠️ Missing arguments! Please check how to use the command.", delete_after=5)
+        # 5. Command Not Found (Galat spelling)
+        elif isinstance(error, commands.CommandNotFound):
+            pass # Isse bot khali message par reply nahi dega
 
-        # Baki errors ke liye console mein print karega
         else:
-            print(f"An error occurred: {error}")
+            # Baki errors console mein dikhenge
+            print(f"Unhandled Error: {error}")
 
 async def setup(bot):
     await bot.add_cog(ErrorHandler(bot))
-  
+    

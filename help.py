@@ -8,7 +8,7 @@ class Help(commands.Cog):
 
     @commands.command(name="help")
     async def help(self, ctx):
-        # Professional Blurple Color
+        # Clean Blurple Color
         embed = discord.Embed(
             title="✨ NovaX Bot | Help Panel",
             description="Welcome to **NovaX**. Here are the commands you can use to manage and interact with the server.",
@@ -33,8 +33,8 @@ class Help(commands.Cog):
         embed.add_field(
             name="💤 AFK System",
             value=(
-                "> `!afk [reason]` - Set your AFK status (Default: I'm AFK)\n"
-                "> *Note: AFK will be removed automatically when you chat.*"
+                "> `!afk [reason]` - Set your AFK status\n"
+                "> *Note: AFK is removed when you chat.*"
             ),
             inline=False
         )
@@ -49,8 +49,8 @@ class Help(commands.Cog):
             inline=False
         )
 
-        # JAPAN MOUNTAINS THUMBNAIL
-        embed.set_thumbnail(url="https://i.imgur.com/vHq0A6r.jpeg")
+        # CHANGE: Mountain hata kar Bot ka icon set kiya hai
+        embed.set_thumbnail(url=self.bot.user.display_avatar.url)
         
         # Footer with user info
         embed.set_footer(
@@ -62,4 +62,5 @@ class Help(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(Help(bot))
+    
         

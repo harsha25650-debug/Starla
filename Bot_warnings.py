@@ -12,3 +12,7 @@ def get_warnings(user_id):
 
 def clear_warnings(user_id):
     warnings[user_id] = []
+
+async def setup(bot):
+    await bot.add_cog(ClassName(bot))
+    

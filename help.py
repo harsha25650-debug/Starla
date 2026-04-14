@@ -4,7 +4,7 @@ from discord import app_commands
 import json
 import os
 
-# Professional Banner URL
+# Bot branding
 BANNER_URL = "https://cdn.discordapp.com/attachments/1432767818075738242/1493536131403481118/1775935922918.png?ex=69df536a&is=69de01ea&hm=143e2e9e62a23474072913dc3ee3a94d30d4b845a910ea5e7add13a707400681&"
 
 
@@ -17,11 +17,11 @@ class HelpDropdown(discord.ui.Select):
             discord.SelectOption(label="Moderation", description="Safety and protection commands", emoji="🔨"),
             discord.SelectOption(label="Utility", description="General usage and information", emoji="⚙️"),
             discord.SelectOption(label="Management", description="Server settings and role control", emoji="🛡️"),
-            discord.SelectOption(label="Home", description="Return to the main overview", emoji="🏠"),
+            discord.SelectOption(label="Home", description="Return to main page", emoji="🏠"),
         ]
 
         super().__init__(
-            placeholder="Select a category to filter...",
+            placeholder="Select a category...",
             min_values=1,
             max_values=1,
             options=options
@@ -29,8 +29,14 @@ class HelpDropdown(discord.ui.Select):
 
     async def callback(self, interaction: discord.Interaction):
         embed = discord.Embed(color=0x2b2d31)
-        embed.set_image(url=BANNER_URL)
         p = self.prefix
+
+        # ⭐ BOT ICON (SIDE / THUMBNAIL)
+        if self.bot.user.avatar:
+            embed.set_thumbnail(url=self.bot.user.avatar.url)
+
+        # Keep banner always on top area
+        embed.set_image(url=BANNER_URL)
 
         if self.values[0] == "Moderation":
             embed.title = "🔨 Moderation Module"
@@ -38,10 +44,10 @@ class HelpDropdown(discord.ui.Select):
                 f"```\n"
                 f"{p}ban    : Ban a member permanently\n"
                 f"{p}unban  : Remove a ban via User ID\n"
-                f"{p}kick   : Kick a member from the server\n"
-                f"{p}mute   : Timeout a member temporarily\n"
-                f"{p}unmute : Remove timeout from a member\n"
-                f"{p}clear  : Delete a large amount of messages\n"
+                f"{p}kick   : Kick a member\n"
+                f"{p}mute   : Timeout a member\n"
+                f"{p}unmute : Remove timeout\n"
+                f"{p}clear  : Delete messages\n"
                 f"```"
             )
 
@@ -49,11 +55,11 @@ class HelpDropdown(discord.ui.Select):
             embed.title = "⚙️ Utility Module"
             embed.description = (
                 f"```\n"
-                f"{p}afk    : Set an away status\n"
-                f"{p}say    : Broadcast via the bot\n"
-                f"{p}dm     : Message a user privately\n"
-                f"{p}ping   : Check bot connectivity\n"
-                f"{p}help   : View this help panel\n"
+                f"{p}afk    : Set AFK status\n"
+                f"{p}say    : Bot message\n"
+                f"{p}dm     : DM a user\n"
+                f"{p}ping   : Check latency\n"
+                f"{p}help   : Open help panel\n"
                 f"```"
             )
 
@@ -61,18 +67,15 @@ class HelpDropdown(discord.ui.Select):
             embed.title = "🛡️ Management Module"
             embed.description = (
                 f"```\n"
-                f"{p}setprefix : Update server prefix\n"
-                f"{p}role add   : Assign role to a member\n"
-                f"{p}role rem   : Remove role from a member\n"
-                f"{p}case       : Lookup moderation records\n"
+                f"{p}setprefix : Change prefix\n"
+                f"{p}role add   : Give role\n"
+                f"{p}role rem   : Remove role\n"
+                f"{p}case       : Moderation logs\n"
                 f"```"
             )
 
         else:
-            await interaction.response.edit_message(
-                embed=self.view.main_embed,
-                view=self.view
-            )
+            await interaction.response.edit_message(embed=self.view.main_embed, view=self.view)
             return
 
         embed.set_footer(
@@ -95,7 +98,7 @@ class Help(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.hybrid_command(name="help", description="Browse available bot commands")
+    @commands.hybrid_command(name="help", description="Browse bot commands")
     async def help(self, ctx):
         guild_prefix = "!"
         prefix_file = "./data/prefixes.json"
@@ -112,24 +115,25 @@ class Help(commands.Cog):
 
         # MAIN EMBED
         embed = discord.Embed(
-            title="✨ NovaX | Bot Command Center",
-            description=(
-                "Welcome to **NovaX**.\n"
-                "Use the dropdown below to explore commands."
-            ),
+            title="✨ NovaX | Command Center",
+            description="Use the menu below to explore bot commands.",
             color=0x2b2d31
         )
 
+        # ⭐ BOT ICON (MAIN EMBED SIDE)
+        if self.bot.user.avatar:
+            embed.set_thumbnail(url=self.bot.user.avatar.url)
+
+        # ⭐ BANNER ABOVE SELECT MENU
         embed.set_image(url=BANNER_URL)
 
         embed.add_field(name="🔨 Moderation", value="`ban`, `kick`, `mute`, `clear`", inline=True)
         embed.add_field(name="⚙️ Utility", value="`afk`, `say`, `dm`, `ping`", inline=True)
         embed.add_field(name="🛡️ Management", value="`role`, `setprefix`, `case`", inline=True)
 
-        # ✅ FIXED LINE 108 ERROR HERE
         embed.add_field(
             name="ℹ️ Usage Guide",
-            value=f"Use `{p}help` to open the interactive menu.\nSelect a category from dropdown.",
+            value=f"Use `{p}help` and select a category from dropdown.",
             inline=False
         )
 

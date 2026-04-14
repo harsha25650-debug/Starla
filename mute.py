@@ -36,8 +36,11 @@ class Mute(commands.Cog):
         return None
 
     def save_case(self, case_id, action, target, moderator, reason):
-        with open(self.db_file, "r") as f:
-            data = json.load(f)
+        try:
+            with open(self.db_file, "r") as f:
+                data = json.load(f)
+        except:
+            data = {"case_count": 0}
         
         data[str(case_id)] = {
             "action": action,
@@ -85,7 +88,6 @@ class Mute(commands.Cog):
         except:
             dm_status = "(user could not be notified via DM)"
 
-        # Zeppelin style response
         await ctx.send(f"✅ **Muted {member.name}** {display_duration} (Case #{case_id}) {dm_status}")
 
         if seconds:
@@ -108,36 +110,5 @@ class Mute(commands.Cog):
 
         await ctx.send(f"✅ **Unmuted {member.name}** (Case #{case_id})")
 
-    # ✅ FIXED CASE COMMAND (No more invalid argument)
-    @commands.hybrid_command(name="case", description="Get details of a specific case")
-    @app_commands.describe(number="The case number to look up")
-    @commands.has_permissions(manage_roles=True)
-    async def case_info(self, ctx, number: int):
-        try:
-            with open(self.db_file, "r") as f:
-                data = json.load(f)
-            
-            case_data = data.get(str(number))
-            
-            if not case_data:
-                return await ctx.send(f"❌ Case #{number} data mein nahi mila.")
-
-            embed = discord.Embed(
-                title=f"Case #{number} | {case_data['action']}",
-                color=discord.Color.orange(),
-                timestamp=datetime.datetime.fromisoformat(case_data['timestamp'].replace('Z', '+00:00'))
-            )
-            embed.add_field(name="Target", value=f"**{case_data['target_name']}**\n({case_data['target_id']})", inline=True)
-            embed.add_field(name="Moderator", value=case_data['moderator'], inline=True)
-            embed.add_field(name="Reason", value=case_data['reason'], inline=False)
-            
-            await ctx.send(embed=embed)
-
-        except FileNotFoundError:
-            await ctx.send("❌ Database file abhi tak bani nahi hai.")
-        except Exception as e:
-            await ctx.send(f"❌ Error: {e}")
-
 async def setup(bot):
     await bot.add_cog(Mute(bot))
-    

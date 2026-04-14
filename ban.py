@@ -74,7 +74,7 @@ class Ban(commands.Cog):
 
         # Try DM
         try:
-            await target_user.send(f"🔓 You were unbanned from **{ctx.guild.name}**\n**Reason:** {reason}\n**Case:** #{case_id}")
+            await target_user.send(f"🥀 You were unbanned from **{ctx.guild.name}**\n**Reason:** {reason}\n**Case:** #{case_id}")
         except:
             pass
 
@@ -82,7 +82,7 @@ class Ban(commands.Cog):
         self.save_case(case_id, "Unban", target_user, ctx.author, reason)
 
         # Response
-        await ctx.send(f"🔓 **Unbanned {target_user.name}** (Case #{case_id})")
+        await ctx.send(f"✅ **Unbanned {target_user.name}** (Case #{case_id})")
 
 
 async def setup(bot):

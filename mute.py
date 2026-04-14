@@ -10,20 +10,16 @@ import asyncio
 class Mute(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        # Path for Railway Volume
         self.db_path = "/data"
         self.db_file = "/data/cases.json"
         
-        # FIX: Agar folder nahi hai toh bana do
         if not os.path.exists(self.db_path):
             try:
                 os.makedirs(self.db_path, exist_ok=True)
             except Exception as e:
                 print(f"Error creating directory: {e}")
-                # Fallback to local if /data is not accessible
                 self.db_file = "cases.json"
 
-        # FIX: Agar file nahi hai toh empty json bana do
         if not os.path.exists(self.db_file):
             with open(self.db_file, "w") as f:
                 json.dump({"case_count": 0}, f)
@@ -86,15 +82,34 @@ class Mute(commands.Cog):
             await member.send(f"🔇 You were muted in **{ctx.guild.name}**\n**Duration:** {actual_duration}\n**Reason:** {reason}\n**Case:** #{case_id}")
         except: pass
 
-        await ctx.send(f"✅ **Muted {member.name}** | **{actual_duration}** (Case #{case_id}) (user notified with a direct message)")
+        await ctx.send(f"✅ **Muted {member.name}** | **{actual_duration}** (Case #{case_id})")
 
         if seconds:
             await asyncio.sleep(seconds)
             if muted_role in member.roles:
                 await member.remove_roles(muted_role)
 
+    # ✅ NEW UNMUTE COMMAND
+    @commands.hybrid_command(name="unmute", description="Unmute a member")
+    @app_commands.describe(member="Member to unmute", reason="Reason for unmute")
+    @commands.has_permissions(manage_roles=True)
+    async def unmute(self, ctx, member: discord.Member, *, reason: str = "No reason provided"):
+        muted_role = discord.utils.get(ctx.guild.roles, name="Muted")
+
+        if not muted_role or muted_role not in member.roles:
+            return await ctx.send("❌ This user is not muted.")
+
+        case_id = await self.get_next_case()
+
+        await member.remove_roles(muted_role)
+        self.save_case(case_id, "Unmute", member, ctx.author, reason)
+
+        try:
+            await member.send(f"🔊 You were unmuted in **{ctx.guild.name}**\n**Reason:** {reason}\n**Case:** #{case_id}")
+        except:
+            pass
+
+        await ctx.send(f"✅ **Unmuted {member.name}** (Case #{case_id})")
+
 async def setup(bot):
     await bot.add_cog(Mute(bot))
-        
-        
-        

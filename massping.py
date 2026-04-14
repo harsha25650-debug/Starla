@@ -1,13 +1,14 @@
 import discord
 from discord.ext import commands
 import asyncio
+import random
 
 class MassPing(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.active = {}
 
-    # 🚀 1. SAFE UNLIMITED MASSPING (batch system)
+    # 🚀 1. SAFE UNLIMITED MASSPING
     @commands.command()
     @commands.is_owner()
     async def massping(self, ctx, member: discord.Member, amount: int):
@@ -38,7 +39,7 @@ class MassPing(commands.Cog):
         self.active[ctx.channel.id] = False
         await ctx.send("✅ Done.")
 
-    # ⚡ 2. FAST LOOP (MAX 50 - ultra fast feel)
+    # ⚡ 2. FAST LOOP (MAX 50)
     @commands.command()
     @commands.is_owner()
     async def mploop(self, ctx, member: discord.Member, amount: int):
@@ -54,7 +55,6 @@ class MassPing(commands.Cog):
         for i in range(amount):
             await ctx.send(member.mention)
 
-            # ultra fast but safe
             if i % 5 == 0:
                 await asyncio.sleep(0.2)
 
@@ -71,7 +71,7 @@ class MassPing(commands.Cog):
         msg = " ".join([member.mention for _ in range(amount)])
         await ctx.send(msg)
 
-    # 👻 4. GHOST PING
+    # 👻 4. GHOST PING (UPDATED)
     @commands.command()
     @commands.is_owner()
     async def ghostping(self, ctx, member: discord.Member, amount: int):
@@ -79,9 +79,21 @@ class MassPing(commands.Cog):
         if amount > 20:
             return await ctx.send("❌ Max 20 ghost pings.")
 
+        if amount <= 0:
+            return
+
+        # 🧹 delete command message
+        try:
+            await ctx.message.delete()
+        except:
+            pass
+
         for _ in range(amount):
             msg = await ctx.send(member.mention)
-            await asyncio.sleep(0.2)
+
+            # random delay (more natural)
+            await asyncio.sleep(random.uniform(0.15, 0.3))
+
             await msg.delete()
 
     # 🛑 5. STOP COMMAND

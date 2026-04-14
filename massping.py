@@ -17,7 +17,7 @@ class MassPing(commands.Cog):
     async def massping(self, ctx, member: discord.Member, amount: int):
 
         if amount <= 0:
-            return await ctx.send("❌ Invalid amount.")
+            return await ctx.send("Invalid amount.")
 
         if self.is_running(ctx.channel.id):
             return await ctx.send("⚠️ Already running.")
@@ -51,10 +51,11 @@ class MassPing(commands.Cog):
     async def mploop(self, ctx, member: discord.Member, amount: int):
 
         if amount > 500:
-            return await ctx.send("❌ Max limit is 500.")
+            return await ctx.send(" 
+            Max limit is 500.")
 
         if amount <= 0:
-            return await ctx.send("❌ Invalid amount.")
+            return await ctx.send("Invalid amount.")
 
         self.active[ctx.channel.id] = True
         await ctx.send(f"⚡ Fast loop ping x{amount}")
@@ -77,7 +78,7 @@ class MassPing(commands.Cog):
     async def mpfast(self, ctx, member: discord.Member, amount: int):
 
         if amount > 87:
-            return await ctx.send("❌ Max 87 per message.")
+            return await ctx.send("Max 87 per message.")
 
         if amount <= 0:
             return
@@ -101,7 +102,7 @@ class MassPing(commands.Cog):
     async def ghostping(self, ctx, member: discord.Member, amount: int):
 
         if amount > 500:
-            return await ctx.send("❌ Max 500 ghost pings.")
+            return await ctx.send("Max 500 ghost pings.")
 
         if amount <= 0:
             return
@@ -138,7 +139,7 @@ class MassPing(commands.Cog):
             self.active[ctx.channel.id] = False
             await ctx.send("🛑 All ping tasks stopped.")
         else:
-            await ctx.send("❌ Nothing running.")
+            await ctx.send("Nothing running.")
 
     # ❗ ERROR HANDLER
     @massping.error
@@ -147,7 +148,7 @@ class MassPing(commands.Cog):
     @ghostping.error
     async def error(self, ctx, error):
         if isinstance(error, commands.NotOwner):
-            await ctx.send("❌ Only bot owner can use this.")
+            await ctx.send("Access denied: Bot owner only command.")
 
 async def setup(bot):
     await bot.add_cog(MassPing(bot))

@@ -31,19 +31,27 @@ class Kick(commands.Cog):
         return data.get("case_count", 0) + 1
 
     @commands.hybrid_command(name="kick", description="Kick a member from the server")
-    @app_commands.describe(member="Member to kick", reason="Reason for the kick")
+    @app_commands.describe(member="Member to kick", reason="Reason for the kick (Optional)")
     @commands.has_permissions(kick_members=True)
     async def kick(self, ctx, member: discord.Member, *, reason: str = "No reason provided"):
         case_id = await self.get_next_case()
+        
+        # Notify User
         try:
             await member.send(f"👢 You were kicked from **{ctx.guild.name}**\n**Reason:** {reason}\n**Case:** #{case_id}")
         except: pass
 
+        # Perform Kick
         await member.kick(reason=f"Case #{case_id} | {reason}")
+        
+        # Save to Database
         self.save_case(case_id, "Kick", member, ctx.author, reason)
+        
+        # Zeppelin Style Response
         await ctx.send(f"✅ **Kicked {member.name}** (Case #{case_id}) (user notified with a direct message)")
 
 async def setup(bot):
     await bot.add_cog(Kick(bot))
+    
     
         

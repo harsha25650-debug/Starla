@@ -10,13 +10,12 @@ import asyncio
 class Mute(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.db_path = "./data" # Path ko thoda simple rakha hai
+        self.db_path = "./data"
         self.db_file = "./data/cases.json"
         
         if not os.path.exists(self.db_path):
             os.makedirs(self.db_path, exist_ok=True)
 
-        # Agar file nahi hai ya khali hai, toh case_count 0 se shuru hoga
         if not os.path.exists(self.db_file):
             with open(self.db_file, "w") as f:
                 json.dump({"case_count": 0}, f)
@@ -48,7 +47,7 @@ class Mute(commands.Cog):
             "reason": reason,
             "timestamp": str(datetime.datetime.now(datetime.timezone.utc))
         }
-        data["case_count"] = case_id # Yeh update karega current count ko
+        data["case_count"] = case_id
         
         with open(self.db_file, "w") as f:
             json.dump(data, f, indent=4)
@@ -67,7 +66,6 @@ class Mute(commands.Cog):
     async def mute(self, ctx, member: discord.Member, duration: str = None, *, reason: str = "No reason provided"):
         case_id = await self.get_next_case()
         
-        # Duration formatting
         display_duration = f"for {duration}" if duration else "permanently"
         seconds = self.convert_time(duration) if duration else None
 
@@ -80,15 +78,14 @@ class Mute(commands.Cog):
         await member.add_roles(muted_role)
         self.save_case(case_id, "Mute", member, ctx.author, f"{reason} | Duration: {display_duration}")
         
-        # DM Notification logic
         dm_status = ""
         try:
             await member.send(f"🔇 You were muted in **{ctx.guild.name}**\n**Duration:** {display_duration}\n**Reason:** {reason}\n**Case:** #{case_id}")
             dm_status = "(user notified with a direct message)"
         except:
-            dm_status = "(user could not be notified)"
+            dm_status = "(user could not be notified via DM)"
 
-        # EXACT RESPONSE LIKE IMAGE: ✅ Muted maddy_001 for 5 hours (Case #1)
+        # Zeppelin style response
         await ctx.send(f"✅ **Muted {member.name}** {display_duration} (Case #{case_id}) {dm_status}")
 
         if seconds:
@@ -111,6 +108,36 @@ class Mute(commands.Cog):
 
         await ctx.send(f"✅ **Unmuted {member.name}** (Case #{case_id})")
 
+    # ✅ FIXED CASE COMMAND (No more invalid argument)
+    @commands.hybrid_command(name="case", description="Get details of a specific case")
+    @app_commands.describe(number="The case number to look up")
+    @commands.has_permissions(manage_roles=True)
+    async def case_info(self, ctx, number: int):
+        try:
+            with open(self.db_file, "r") as f:
+                data = json.load(f)
+            
+            case_data = data.get(str(number))
+            
+            if not case_data:
+                return await ctx.send(f"❌ Case #{number} data mein nahi mila.")
+
+            embed = discord.Embed(
+                title=f"Case #{number} | {case_data['action']}",
+                color=discord.Color.orange(),
+                timestamp=datetime.datetime.fromisoformat(case_data['timestamp'].replace('Z', '+00:00'))
+            )
+            embed.add_field(name="Target", value=f"**{case_data['target_name']}**\n({case_data['target_id']})", inline=True)
+            embed.add_field(name="Moderator", value=case_data['moderator'], inline=True)
+            embed.add_field(name="Reason", value=case_data['reason'], inline=False)
+            
+            await ctx.send(embed=embed)
+
+        except FileNotFoundError:
+            await ctx.send("❌ Database file abhi tak bani nahi hai.")
+        except Exception as e:
+            await ctx.send(f"❌ Error: {e}")
+
 async def setup(bot):
     await bot.add_cog(Mute(bot))
-        
+    

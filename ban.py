@@ -1,45 +1,49 @@
 import discord
 from discord.ext import commands
+from discord import app_commands
 import json
 import os
+import datetime
 
 class Ban(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.db_file = "cases.json"
+        self.db_file = "/data/cases.json"
 
     def save_case(self, case_id, action, target, moderator, reason):
         with open(self.db_file, "r") as f:
             data = json.load(f)
-        
         data[str(case_id)] = {
             "action": action,
-            "target": str(target),
+            "target_id": target.id,
+            "target_name": str(target),
             "moderator": str(moderator),
-            "reason": reason
+            "reason": reason,
+            "timestamp": str(datetime.datetime.now(datetime.timezone.utc))
         }
         data["case_count"] = case_id
-        
         with open(self.db_file, "w") as f:
             json.dump(data, f, indent=4)
 
-    @commands.command()
-    @commands.has_permissions(ban_members=True)
-    async def ban(self, ctx, member: discord.Member, *, reason="No reason provided"):
+    async def get_next_case(self):
         with open(self.db_file, "r") as f:
             data = json.load(f)
-        case_id = data.get("case_count", 0) + 1
+        return data.get("case_count", 0) + 1
 
-        await member.ban(reason=reason)
-        self.save_case(case_id, "Ban", member, ctx.author, reason)
-
-        await ctx.send(f"✅ **Banned {member.name}** (Case #{case_id}) (user notified with a DM)")
-
+    @commands.hybrid_command(name="ban", description="Ban a member from the server")
+    @app_commands.describe(member="Member to ban", reason="Reason for the ban")
+    @commands.has_permissions(ban_members=True)
+    async def ban(self, ctx, member: discord.Member, *, reason: str = "No reason provided"):
+        case_id = await self.get_next_case()
         try:
             await member.send(f"🚫 You were banned from **{ctx.guild.name}**\n**Reason:** {reason}\n**Case:** #{case_id}")
-        except:
-            pass
+        except: pass
+
+        await member.ban(reason=f"Case #{case_id} | {reason}")
+        self.save_case(case_id, "Ban", member, ctx.author, reason)
+        await ctx.send(f"✅ **Banned {member.name}** (Case #{case_id}) (user notified with a direct message)")
 
 async def setup(bot):
     await bot.add_cog(Ban(bot))
+    
     

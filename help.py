@@ -4,6 +4,7 @@ from discord import app_commands
 import json
 import os
 
+# Professional Banner URL
 BANNER_URL = "https://cdn.discordapp.com/attachments/1432767818075738242/1493536131403481118/1775935922918.png?ex=69df536a&is=69de01ea&hm=143e2e9e62a23474072913dc3ee3a94d30d4b845a910ea5e7add13a707400681&"
 
 class HelpDropdown(discord.ui.Select):
@@ -16,7 +17,7 @@ class HelpDropdown(discord.ui.Select):
             discord.SelectOption(label="Management", description="Server settings and role control", emoji="🛡️"),
             discord.SelectOption(label="Home", description="Return to the main overview", emoji="🏠"),
         ]
-        super().__init__(placeholder="Filter by category...", min_values=1, max_values=1, options=options)
+        super().__init__(placeholder="Select a category to filter...", min_values=1, max_values=1, options=options)
 
     async def callback(self, interaction: discord.Interaction):
         embed = discord.Embed(color=0x2b2d31)
@@ -56,7 +57,8 @@ class HelpDropdown(discord.ui.Select):
                 f"{p}case       : Lookup moderation records\n"
                 f"```"
             )
-        else: # Home Option
+        else:
+            # Home logic
             await interaction.response.edit_message(embed=self.view.main_embed, view=self.view)
             return
 
@@ -83,12 +85,15 @@ class Help(commands.Cog):
                 with open(prefix_file, "r") as f:
                     prefixes = json.load(f)
                 guild_prefix = prefixes.get(str(ctx.guild.id), "!")
-            except: pass
+            except:
+                pass
+
+        p = guild_prefix
 
         # Main Overview Embed
         embed = discord.Embed(
             title="✨ NovaX | Bot Command Center",
-            description=f"Welcome to **NovaX**. Below is a summary of all commands. Use the menu for detailed category views.",
+            description="Welcome to **NovaX**. Below is a summary of all commands. Use the menu for detailed category views.",
             color=0x2b2d31
         )
         embed.set_image(url=BANNER_URL)

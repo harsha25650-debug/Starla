@@ -8,26 +8,38 @@ import datetime
 class Kick(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        # Path configuration to avoid permission errors
         self.db_path = "./data"
         self.db_file = "./data/cases.json"
         
-        # Ensure the directory and file exist on startup
         if not os.path.exists(self.db_path):
             os.makedirs(self.db_path, exist_ok=True)
 
         if not os.path.exists(self.db_file):
             with open(self.db_file, "w") as f:
-                json.dump({"case_count": 0}, f)
+                json.dump({}, f) # Empty dict for guild-based mapping
 
-    def save_case(self, case_id, action, target, moderator, reason):
+    async def get_next_case(self, guild_id):
+        guild_id = str(guild_id)
+        try:
+            with open(self.db_file, "r") as f:
+                data = json.load(f)
+            return data.get(guild_id, {}).get("case_count", 0) + 1
+        except:
+            return 1
+
+    def save_case(self, guild_id, case_id, action, target, moderator, reason):
+        guild_id = str(guild_id)
         try:
             with open(self.db_file, "r") as f:
                 data = json.load(f)
         except (FileNotFoundError, json.JSONDecodeError):
-            data = {"case_count": 0}
+            data = {}
 
-        data[str(case_id)] = {
+        # Initialize guild data if it doesn't exist
+        if guild_id not in data:
+            data[guild_id] = {"case_count": 0, "cases": {}}
+
+        data[guild_id]["cases"][str(case_id)] = {
             "action": action,
             "target_id": target.id,
             "target_name": str(target),
@@ -35,30 +47,21 @@ class Kick(commands.Cog):
             "reason": reason,
             "timestamp": str(datetime.datetime.now(datetime.timezone.utc))
         }
-        data["case_count"] = case_id
+        data[guild_id]["case_count"] = case_id
         
         with open(self.db_file, "w") as f:
             json.dump(data, f, indent=4)
-
-    async def get_next_case(self):
-        try:
-            with open(self.db_file, "r") as f:
-                data = json.load(f)
-            return data.get("case_count", 0) + 1
-        except:
-            return 1
 
     @commands.hybrid_command(name="kick", description="Kick a member from the server")
     @app_commands.describe(member="Member to kick", reason="Reason for the kick (Optional)")
     @commands.has_permissions(kick_members=True)
     async def kick(self, ctx, member: discord.Member, *, reason: str = "No reason provided"):
-        # Prevent the bot from kicking itself or the user kicking themselves
         if member.id == ctx.author.id:
             return await ctx.send("❌ You cannot kick yourself.")
         
-        case_id = await self.get_next_case()
+        # Pass Guild ID to get the correct case number for THIS server
+        case_id = await self.get_next_case(ctx.guild.id)
         
-        # Handle DM Notification
         dm_status = ""
         try:
             await member.send(f"👢 You were kicked from **{ctx.guild.name}**\n**Reason:** {reason}\n**Case:** #{case_id}")
@@ -66,14 +69,12 @@ class Kick(commands.Cog):
         except:
             dm_status = "(user could not be notified)"
 
-        # Perform the actual kick
         try:
             await member.kick(reason=f"Case #{case_id} | {reason}")
             
-            # Save the case to JSON only if the kick was successful
-            self.save_case(case_id, "Kick", member, ctx.author, reason)
+            # Save using Guild ID
+            self.save_case(ctx.guild.id, case_id, "Kick", member, ctx.author, reason)
             
-            # Output matching the Zeppelin style from your image
             await ctx.send(f"✅ **Kicked {member.name}** (Case #{case_id}) {dm_status}")
             
         except discord.Forbidden:
@@ -83,4 +84,3 @@ class Kick(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(Kick(bot))
-    

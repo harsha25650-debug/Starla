@@ -18,7 +18,7 @@ class Mute(commands.Cog):
 
         if not os.path.exists(self.db_file):
             with open(self.db_file, "w") as f:
-                json.dump({"case_count": 0}, f)
+                json.dump({}, f) # Empty dict for server-wise mapping
 
     def convert_time(self, time_str):
         if not time_str: return None
@@ -35,14 +35,29 @@ class Mute(commands.Cog):
                 return int(match.group(1)) * multiplier
         return None
 
-    def save_case(self, case_id, action, target, moderator, reason):
+    async def get_next_case(self, guild_id):
+        guild_id = str(guild_id)
+        try:
+            with open(self.db_file, "r") as f:
+                data = json.load(f)
+            # Guild ke andar ka case_count check karega
+            return data.get(guild_id, {}).get("case_count", 0) + 1
+        except:
+            return 1
+
+    def save_case(self, guild_id, case_id, action, target, moderator, reason):
+        guild_id = str(guild_id)
         try:
             with open(self.db_file, "r") as f:
                 data = json.load(f)
         except:
-            data = {"case_count": 0}
-        
-        data[str(case_id)] = {
+            data = {}
+
+        # Agar server pehli baar use ho raha hai
+        if guild_id not in data:
+            data[guild_id] = {"case_count": 0, "cases": {}}
+
+        data[guild_id]["cases"][str(case_id)] = {
             "action": action,
             "target_id": target.id,
             "target_name": str(target),
@@ -50,24 +65,17 @@ class Mute(commands.Cog):
             "reason": reason,
             "timestamp": str(datetime.datetime.now(datetime.timezone.utc))
         }
-        data["case_count"] = case_id
+        data[guild_id]["case_count"] = case_id
         
         with open(self.db_file, "w") as f:
             json.dump(data, f, indent=4)
-
-    async def get_next_case(self):
-        try:
-            with open(self.db_file, "r") as f:
-                data = json.load(f)
-            return data.get("case_count", 0) + 1
-        except:
-            return 1
 
     @commands.hybrid_command(name="mute", description="Mute a member")
     @app_commands.describe(member="Member to mute", duration="Example: 10m, 5h, 1d", reason="Reason for mute")
     @commands.has_permissions(manage_roles=True)
     async def mute(self, ctx, member: discord.Member, duration: str = None, *, reason: str = "No reason provided"):
-        case_id = await self.get_next_case()
+        # Server ID pass kar rahe hain
+        case_id = await self.get_next_case(ctx.guild.id)
         
         display_duration = f"for {duration}" if duration else "permanently"
         seconds = self.convert_time(duration) if duration else None
@@ -79,7 +87,9 @@ class Mute(commands.Cog):
                 await channel.set_permissions(muted_role, send_messages=False, speak=False)
 
         await member.add_roles(muted_role)
-        self.save_case(case_id, "Mute", member, ctx.author, f"{reason} | Duration: {display_duration}")
+        
+        # Guild ID ke saath save karega
+        self.save_case(ctx.guild.id, case_id, "Mute", member, ctx.author, f"{reason} | Duration: {display_duration}")
         
         dm_status = ""
         try:
@@ -104,9 +114,10 @@ class Mute(commands.Cog):
         if not muted_role or muted_role not in member.roles:
             return await ctx.send("❌ This user is not muted.")
 
-        case_id = await self.get_next_case()
+        case_id = await self.get_next_case(ctx.guild.id)
         await member.remove_roles(muted_role)
-        self.save_case(case_id, "Unmute", member, ctx.author, reason)
+        
+        self.save_case(ctx.guild.id, case_id, "Unmute", member, ctx.author, reason)
 
         await ctx.send(f"✅ **Unmuted {member.name}** (Case #{case_id})")
 

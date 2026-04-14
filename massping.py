@@ -5,54 +5,104 @@ import asyncio
 class MassPing(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.active_pings = {}  # channel_id: running status
+        self.active = {}
 
-    @commands.command(name="massping")
-    @commands.has_permissions(manage_messages=True)
-    @commands.cooldown(1, 20, commands.BucketType.user)
-
+    # 🚀 1. SAFE UNLIMITED MASSPING (batch system)
+    @commands.command()
+    @commands.is_owner()
     async def massping(self, ctx, member: discord.Member, amount: int):
 
-        if amount > 25:
-            return await ctx.send("❌ Maximum limit is 25 pings.")
+        if amount <= 0:
+            return await ctx.send("❌ Invalid amount.")
+
+        if self.active.get(ctx.channel.id):
+            return await ctx.send("⚠️ Already running.")
+
+        self.active[ctx.channel.id] = True
+        await ctx.send(f"⚡ Starting mass ping x{amount}")
+
+        sent = 0
+
+        while sent < amount:
+            if not self.active.get(ctx.channel.id):
+                return await ctx.send("🛑 Stopped.")
+
+            batch = min(5, amount - sent)
+
+            for _ in range(batch):
+                await ctx.send(member.mention)
+                sent += 1
+
+            await asyncio.sleep(0.5)
+
+        self.active[ctx.channel.id] = False
+        await ctx.send("✅ Done.")
+
+    # ⚡ 2. FAST LOOP (MAX 50 - ultra fast feel)
+    @commands.command()
+    @commands.is_owner()
+    async def mploop(self, ctx, member: discord.Member, amount: int):
+
+        if amount > 50:
+            return await ctx.send("❌ Max limit is 50.")
 
         if amount <= 0:
-            return await ctx.send("❌ Amount must be greater than 0.")
+            return await ctx.send("❌ Invalid amount.")
 
-        # mark active
-        self.active_pings[ctx.channel.id] = True
-
-        await ctx.send(f"⚡ Starting fast ping for {member.mention} ({amount}x)")
+        await ctx.send(f"⚡ Fast loop ping x{amount}")
 
         for i in range(amount):
-            # stop check
-            if not self.active_pings.get(ctx.channel.id):
-                return await ctx.send("⛔ Mass ping stopped.")
-
             await ctx.send(member.mention)
 
-            # ⚡ fastest safe delay
-            await asyncio.sleep(0.15)
+            # ultra fast but safe
+            if i % 5 == 0:
+                await asyncio.sleep(0.2)
 
-        self.active_pings[ctx.channel.id] = False
-        await ctx.send(f"✅ Done pinging {member.mention}")
+        await ctx.send("✅ Done.")
 
-    # 🛑 STOP COMMAND
-    @commands.command(name="mpstop")
-    @commands.has_permissions(manage_messages=True)
+    # 🚀 3. SINGLE MESSAGE FAST PING
+    @commands.command()
+    @commands.is_owner()
+    async def mpfast(self, ctx, member: discord.Member, amount: int):
+
+        if amount > 100:
+            return await ctx.send("❌ Max 100 per message.")
+
+        msg = " ".join([member.mention for _ in range(amount)])
+        await ctx.send(msg)
+
+    # 👻 4. GHOST PING
+    @commands.command()
+    @commands.is_owner()
+    async def ghostping(self, ctx, member: discord.Member, amount: int):
+
+        if amount > 20:
+            return await ctx.send("❌ Max 20 ghost pings.")
+
+        for _ in range(amount):
+            msg = await ctx.send(member.mention)
+            await asyncio.sleep(0.2)
+            await msg.delete()
+
+    # 🛑 5. STOP COMMAND
+    @commands.command()
+    @commands.is_owner()
     async def mpstop(self, ctx):
 
-        if self.active_pings.get(ctx.channel.id):
-            self.active_pings[ctx.channel.id] = False
-            await ctx.send("🛑 Mass ping stopped successfully.")
+        if self.active.get(ctx.channel.id):
+            self.active[ctx.channel.id] = False
+            await ctx.send("🛑 Stopped successfully.")
         else:
-            await ctx.send("❌ No active mass ping running.")
+            await ctx.send("❌ Nothing running.")
 
-    # cooldown error
+    # ❗ ERROR HANDLER
     @massping.error
-    async def massping_error(self, ctx, error):
-        if isinstance(error, commands.CommandOnCooldown):
-            await ctx.send(f"⏳ Wait {round(error.retry_after, 1)} seconds.")
+    @mploop.error
+    @mpfast.error
+    @ghostping.error
+    async def error(self, ctx, error):
+        if isinstance(error, commands.NotOwner):
+            await ctx.send("❌ Only bot owner can use this.")
 
 async def setup(bot):
     await bot.add_cog(MassPing(bot))

@@ -30,28 +30,60 @@ class Ban(commands.Cog):
             data = json.load(f)
         return data.get("case_count", 0) + 1
 
+
+    # 🔨 BAN COMMAND
     @commands.hybrid_command(name="ban", description="Ban a member from the server")
     @app_commands.describe(member="Member to ban", reason="Reason for the ban (Optional)")
     @commands.has_permissions(ban_members=True)
     async def ban(self, ctx, member: discord.Member, *, reason: str = "No reason provided"):
         case_id = await self.get_next_case()
         
-        # Notify User
         try:
             await member.send(f"🚫 You were banned from **{ctx.guild.name}**\n**Reason:** {reason}\n**Case:** #{case_id}")
-        except: pass
+        except:
+            pass
 
-        # Perform Ban
         await member.ban(reason=f"Case #{case_id} | {reason}")
         
-        # Save to Database
         self.save_case(case_id, "Ban", member, ctx.author, reason)
         
-        # Zeppelin Style Response
         await ctx.send(f"✅ **Banned {member.name}** (Case #{case_id}) (user notified with a direct message)")
+
+
+    # 🔓 UNBAN COMMAND
+    @commands.hybrid_command(name="unban", description="Unban a user from the server")
+    @app_commands.describe(user="User to unban (ID or name#tag)", reason="Reason for unban")
+    @commands.has_permissions(ban_members=True)
+    async def unban(self, ctx, user: str, *, reason: str = "No reason provided"):
+        case_id = await self.get_next_case()
+
+        banned_users = [entry async for entry in ctx.guild.bans()]
+
+        target_user = None
+
+        for ban_entry in banned_users:
+            if user == str(ban_entry.user) or user == str(ban_entry.user.id):
+                target_user = ban_entry.user
+                break
+
+        if target_user is None:
+            return await ctx.send("❌ User not found in ban list.")
+
+        # Unban
+        await ctx.guild.unban(target_user, reason=f"Case #{case_id} | {reason}")
+
+        # Try DM
+        try:
+            await target_user.send(f"🔓 You were unbanned from **{ctx.guild.name}**\n**Reason:** {reason}\n**Case:** #{case_id}")
+        except:
+            pass
+
+        # Save Case
+        self.save_case(case_id, "Unban", target_user, ctx.author, reason)
+
+        # Response
+        await ctx.send(f"🔓 **Unbanned {target_user.name}** (Case #{case_id})")
+
 
 async def setup(bot):
     await bot.add_cog(Ban(bot))
-                           
-    
-    

@@ -8,6 +8,9 @@ class MassPing(commands.Cog):
         self.bot = bot
         self.active = {}
 
+    def is_running(self, channel_id):
+        return self.active.get(channel_id, False)
+
     # 🚀 1. SAFE UNLIMITED MASSPING
     @commands.command()
     @commands.is_owner()
@@ -16,7 +19,7 @@ class MassPing(commands.Cog):
         if amount <= 0:
             return await ctx.send("❌ Invalid amount.")
 
-        if self.active.get(ctx.channel.id):
+        if self.is_running(ctx.channel.id):
             return await ctx.send("⚠️ Already running.")
 
         self.active[ctx.channel.id] = True
@@ -25,12 +28,15 @@ class MassPing(commands.Cog):
         sent = 0
 
         while sent < amount:
-            if not self.active.get(ctx.channel.id):
+            if not self.is_running(ctx.channel.id):
                 return await ctx.send("🛑 Stopped.")
 
             batch = min(5, amount - sent)
 
             for _ in range(batch):
+                if not self.is_running(ctx.channel.id):
+                    return await ctx.send("🛑 Stopped.")
+
                 await ctx.send(member.mention)
                 sent += 1
 
@@ -39,7 +45,7 @@ class MassPing(commands.Cog):
         self.active[ctx.channel.id] = False
         await ctx.send("✅ Done.")
 
-    # ⚡ 2. FAST LOOP (MAX 500)
+    # ⚡ 2. FAST LOOP
     @commands.command()
     @commands.is_owner()
     async def mploop(self, ctx, member: discord.Member, amount: int):
@@ -50,14 +56,19 @@ class MassPing(commands.Cog):
         if amount <= 0:
             return await ctx.send("❌ Invalid amount.")
 
+        self.active[ctx.channel.id] = True
         await ctx.send(f"⚡ Fast loop ping x{amount}")
 
         for i in range(amount):
+            if not self.is_running(ctx.channel.id):
+                return await ctx.send("🛑 Stopped.")
+
             await ctx.send(member.mention)
 
             if i % 5 == 0:
                 await asyncio.sleep(0.2)
 
+        self.active[ctx.channel.id] = False
         await ctx.send("✅ Done.")
 
     # 🚀 3. SINGLE MESSAGE FAST PING
@@ -68,10 +79,23 @@ class MassPing(commands.Cog):
         if amount > 500:
             return await ctx.send("❌ Max 500 per message.")
 
-        msg = " ".join([member.mention for _ in range(amount)])
+        if amount <= 0:
+            return
+
+        self.active[ctx.channel.id] = True
+
+        msg = ""
+        for i in range(amount):
+            if not self.is_running(ctx.channel.id):
+                return await ctx.send("🛑 Stopped.")
+
+            msg += member.mention + " "
+
         await ctx.send(msg)
 
-    # 👻 4. GHOST PING (UPDATED)
+        self.active[ctx.channel.id] = False
+
+    # 👻 4. GHOST PING (STOP SUPPORT ADDED)
     @commands.command()
     @commands.is_owner()
     async def ghostping(self, ctx, member: discord.Member, amount: int):
@@ -82,28 +106,37 @@ class MassPing(commands.Cog):
         if amount <= 0:
             return
 
-        # 🧹 delete command message
+        self.active[ctx.channel.id] = True
+
+        # delete command message
         try:
             await ctx.message.delete()
         except:
             pass
 
         for _ in range(amount):
+            if not self.is_running(ctx.channel.id):
+                return
+
             msg = await ctx.send(member.mention)
 
-            # random delay (more natural)
             await asyncio.sleep(random.uniform(0.15, 0.3))
 
-            await msg.delete()
+            try:
+                await msg.delete()
+            except:
+                pass
 
-    # 🛑 5. STOP COMMAND
+        self.active[ctx.channel.id] = False
+
+    # 🛑 5. STOP COMMAND (GLOBAL)
     @commands.command()
     @commands.is_owner()
     async def mpstop(self, ctx):
 
-        if self.active.get(ctx.channel.id):
+        if self.is_running(ctx.channel.id):
             self.active[ctx.channel.id] = False
-            await ctx.send("🛑 Stopped successfully.")
+            await ctx.send("🛑 All ping tasks stopped.")
         else:
             await ctx.send("❌ Nothing running.")
 

@@ -6,13 +6,31 @@ class Spam(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.active_spam = {}
+        self.allowed_users = set()  # ✅ access list
 
-    @commands.command(name="spam")
+    def has_access(self, ctx):
+        return ctx.author.id == self.bot.owner_id or ctx.author.id in self.allowed_users
+
+    # ✅ GIVE ACCESS
+    @commands.command(name="spaccess")
     @commands.is_owner()
+    async def spaccess(self, ctx, member: discord.Member):
+        self.allowed_users.add(member.id)
+        await ctx.send(f"✅ Spam access granted for {member.mention}")
+
+    # ❌ REMOVE ACCESS
+    @commands.command(name="spremove")
+    @commands.is_owner()
+    async def spremove(self, ctx, member: discord.Member):
+        self.allowed_users.discard(member.id)
+        await ctx.send(f"❌ Spam access removed for {member.mention}")
+
+    # 🚀 SPAM COMMAND
+    @commands.command(name="spam")
     async def spam(self, ctx, *, args=None):
-        """
-        Usage: !spam hello 10
-        """
+
+        if not self.has_access(ctx):
+            return await ctx.send("❌ You don't have permission.")
 
         if not args:
             return await ctx.send("❌ Usage: !spam <message> <amount>")
@@ -30,29 +48,28 @@ class Spam(commands.Cog):
         if amount > 500:
             return await ctx.send("⚠️ Limit exceeded! Max allowed is 500.")
 
-        # mark spam active
         self.active_spam[ctx.channel.id] = True
 
-        await ctx.message.delete()
+        try:
+            await ctx.message.delete()
+        except:
+            pass
 
         for _ in range(amount):
-            # check if stopped
             if not self.active_spam.get(ctx.channel.id):
                 break
 
             await ctx.send(message)
             await asyncio.sleep(0.3)
 
-        # cleanup after finish
         self.active_spam.pop(ctx.channel.id, None)
 
-
+    # 🛑 STOP SPAM
     @commands.command(name="spstop")
-    @commands.is_owner()
     async def spstop(self, ctx):
-        """
-        Stops active spam in current channel
-        """
+
+        if not self.has_access(ctx):
+            return await ctx.send("❌ You don't have permission.")
 
         if self.active_spam.get(ctx.channel.id):
             self.active_spam[ctx.channel.id] = False
@@ -60,10 +77,12 @@ class Spam(commands.Cog):
         else:
             await ctx.send("⚠️ No active spam in this channel.")
 
-        await ctx.message.delete()
+        try:
+            await ctx.message.delete()
+        except:
+            pass
 
-
-    # 🔒 Error Handler
+    # 🔒 ERROR HANDLER
     @spam.error
     @spstop.error
     async def spam_error(self, ctx, error):
@@ -78,7 +97,6 @@ class Spam(commands.Cog):
 
         else:
             await ctx.send("⚠️ Unexpected error occurred.")
-
 
 async def setup(bot):
     await bot.add_cog(Spam(bot))

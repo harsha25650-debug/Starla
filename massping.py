@@ -76,8 +76,8 @@ class MassPing(commands.Cog):
     @commands.is_owner()
     async def mpfast(self, ctx, member: discord.Member, amount: int):
 
-        if amount > 500:
-            return await ctx.send("❌ Max 500 per message.")
+        if amount > 87:
+            return await ctx.send("❌ Max 87 per message.")
 
         if amount <= 0:
             return

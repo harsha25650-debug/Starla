@@ -51,8 +51,7 @@ class MassPing(commands.Cog):
     async def mploop(self, ctx, member: discord.Member, amount: int):
 
         if amount > 500:
-            return await ctx.send(" 
-            Max limit is 500.")
+            return await ctx.send("Max limit is 500.")
 
         if amount <= 0:
             return await ctx.send("Invalid amount.")

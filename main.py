@@ -12,26 +12,32 @@ bot.remove_command('help')
 
 @bot.event
 async def on_ready():
-    print(f"✅ Bot Online Hai: {bot.user}")
+    print(f"✅ Bot is online: {bot.user}")
 
-# Files load karne ka naya tarika (Direct files ke liye)
+    # 🔥 Sync slash commands (IMPORTANT)
+    try:
+        synced = await bot.tree.sync()
+        print(f"✅ Synced {len(synced)} slash commands globally")
+    except Exception as e:
+        print(f"❌ Sync failed: {e}")
+
+
+# Load all extension files
 async def load_extensions():
     for filename in os.listdir('./'):
-        # Sirf .py files lega, lekin main.py aur baki faltu files chhod dega
         if filename.endswith('.py') and filename not in ['main.py', 'db.py', 'requirements.txt']:
             try:
-                # Yahan 'commands.' hata diya gaya hai
                 await bot.load_extension(f'{filename[:-3]}')
-                print(f'✅ {filename} load ho gayi!')
+                print(f'✅ Loaded extension: {filename}')
             except Exception as e:
-                print(f'❌ {filename} load nahi hui! Error: {e}')
+                print(f'❌ Failed to load {filename}: {e}')
+
 
 async def main():
     async with bot:
         await load_extensions()
-        # Railway ke liye TOKEN env variable se lega
         await bot.start(os.getenv("TOKEN"))
+
 
 if __name__ == "__main__":
     asyncio.run(main())
-    

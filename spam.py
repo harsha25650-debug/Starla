@@ -5,6 +5,7 @@ import asyncio
 class Spam(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.active_spam = {}
 
     @commands.command(name="spam")
     @commands.is_owner()
@@ -26,18 +27,45 @@ class Spam(commands.Cog):
         if amount <= 0:
             return await ctx.send("❌ Amount must be greater than 0.")
 
-        if amount > 50:
-            return await ctx.send("⚠️ Limit exceeded! Max allowed is 50.")
+        if amount > 500:
+            return await ctx.send("⚠️ Limit exceeded! Max allowed is 500.")
+
+        # mark spam active
+        self.active_spam[ctx.channel.id] = True
 
         await ctx.message.delete()
 
         for _ in range(amount):
+            # check if stopped
+            if not self.active_spam.get(ctx.channel.id):
+                break
+
             await ctx.send(message)
             await asyncio.sleep(0.3)
 
+        # cleanup after finish
+        self.active_spam.pop(ctx.channel.id, None)
 
-    # 🔒 Custom Error Handler
+
+    @commands.command(name="spstop")
+    @commands.is_owner()
+    async def spstop(self, ctx):
+        """
+        Stops active spam in current channel
+        """
+
+        if self.active_spam.get(ctx.channel.id):
+            self.active_spam[ctx.channel.id] = False
+            await ctx.send("🛑 Spam stopped.")
+        else:
+            await ctx.send("⚠️ No active spam in this channel.")
+
+        await ctx.message.delete()
+
+
+    # 🔒 Error Handler
     @spam.error
+    @spstop.error
     async def spam_error(self, ctx, error):
         if isinstance(error, commands.NotOwner):
             await ctx.send("⛔ Access denied: Bot owner only command.")

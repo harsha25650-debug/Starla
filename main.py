@@ -4,10 +4,10 @@ import asyncio
 import json
 from discord.ext import commands
 
-from database import Database  # ✅ DATABASE IMPORT
+from database import Database
 
 
-# --- PREFIX LOGIC (✅ DATABASE BASED) ---
+# --- PREFIX LOGIC (DATABASE BASED) ---
 def get_prefix(bot, message):
     if not message.guild:
         return "!"
@@ -21,17 +21,12 @@ intents = discord.Intents.all()
 bot = commands.Bot(command_prefix=get_prefix, intents=intents)
 bot.remove_command('help')
 
-# ✅ DATABASE ATTACH (GLOBAL ACCESS)
-bot.db = Database("data/database.json")
-
 
 @bot.event
 async def on_ready():
     print(f"✅ Bot is online: {bot.user}")
-
     print("💾 Database loaded successfully")
 
-    # 🔥 Sync slash commands
     try:
         synced = await bot.tree.sync()
         print(f"✅ Synced {len(synced)} slash commands globally")
@@ -43,13 +38,7 @@ async def on_ready():
 async def load_extensions():
 
     # 📁 Ensure data folder exists
-    if not os.path.exists("./data"):
-        os.makedirs("./data")
-
-    # 📁 Ensure database file exists
-    if not os.path.exists("./data/database.json"):
-        with open("./data/database.json", "w") as f:
-            json.dump({}, f)
+    os.makedirs("./data", exist_ok=True)
 
     # 🔄 Load all cogs
     for filename in os.listdir('./'):
@@ -63,6 +52,18 @@ async def load_extensions():
 
 async def main():
     async with bot:
+
+        # 📁 Ensure data folder exists
+        os.makedirs("./data", exist_ok=True)
+
+        # 📁 Ensure database file exists (🔥 FIX)
+        if not os.path.exists("./data/database.json"):
+            with open("./data/database.json", "w") as f:
+                json.dump({}, f)
+
+        # ✅ DATABASE attach (🔥 IMPORTANT FIX)
+        bot.db = Database("data/database.json")
+
         await load_extensions()
 
         token = os.getenv("TOKEN")

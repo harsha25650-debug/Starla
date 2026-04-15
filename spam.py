@@ -6,23 +6,42 @@ class Spam(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.active_spam = {}
-        self.allowed_users = set()  # ✅ access list
 
+    # 📥 GET ACCESS
+    def get_access(self, guild_id):
+        return self.bot.db.get(f"spaccess.{guild_id}", [])
+
+    # 💾 ADD ACCESS
+    def add_access(self, guild_id, user_id):
+        users = self.get_access(guild_id)
+        if user_id not in users:
+            users.append(user_id)
+            self.bot.db.set(f"spaccess.{guild_id}", users)
+
+    # ❌ REMOVE ACCESS
+    def remove_access(self, guild_id, user_id):
+        users = self.get_access(guild_id)
+        if user_id in users:
+            users.remove(user_id)
+            self.bot.db.set(f"spaccess.{guild_id}", users)
+
+    # 🔐 CHECK ACCESS
     def has_access(self, ctx):
-        return ctx.author.id == self.bot.owner_id or ctx.author.id in self.allowed_users
+        users = self.get_access(ctx.guild.id)
+        return ctx.author.id == ctx.bot.owner_id or ctx.author.id in users
 
     # ✅ GIVE ACCESS
     @commands.command(name="spaccess")
     @commands.is_owner()
     async def spaccess(self, ctx, member: discord.Member):
-        self.allowed_users.add(member.id)
+        self.add_access(ctx.guild.id, member.id)
         await ctx.send(f"✅ Spam access granted for {member.mention}")
 
     # ❌ REMOVE ACCESS
     @commands.command(name="spremove")
     @commands.is_owner()
     async def spremove(self, ctx, member: discord.Member):
-        self.allowed_users.discard(member.id)
+        self.remove_access(ctx.guild.id, member.id)
         await ctx.send(f"❌ Spam access removed for {member.mention}")
 
     # 🚀 SPAM COMMAND
@@ -46,7 +65,7 @@ class Spam(commands.Cog):
             return await ctx.send("❌ Amount must be greater than 0.")
 
         if amount > 500:
-            return await ctx.send("⚠️ Limit exceeded! Max allowed is 500.")
+            return await ctx.send("⚠️ Max limit is 500.")
 
         self.active_spam[ctx.channel.id] = True
 
@@ -64,7 +83,7 @@ class Spam(commands.Cog):
 
         self.active_spam.pop(ctx.channel.id, None)
 
-    # 🛑 STOP SPAM
+    # 🛑 STOP
     @commands.command(name="spstop")
     async def spstop(self, ctx):
 
@@ -75,28 +94,25 @@ class Spam(commands.Cog):
             self.active_spam[ctx.channel.id] = False
             await ctx.send("🛑 Spam stopped.")
         else:
-            await ctx.send("⚠️ No active spam in this channel.")
+            await ctx.send("⚠️ No active spam.")
 
         try:
             await ctx.message.delete()
         except:
             pass
 
-    # 🔒 ERROR HANDLER
+    # ❗ ERROR HANDLER
     @spam.error
     @spstop.error
     async def spam_error(self, ctx, error):
         if isinstance(error, commands.NotOwner):
-            await ctx.send("⛔ Access denied: Bot owner only command.")
-
+            await ctx.send("⛔ Owner only command.")
         elif isinstance(error, commands.MissingRequiredArgument):
-            await ctx.send("❌ Missing arguments. Usage: !spam <message> <amount>")
-
+            await ctx.send("❌ Usage: !spam <message> <amount>")
         elif isinstance(error, commands.BadArgument):
-            await ctx.send("❌ Invalid input. Please enter a valid number.")
-
+            await ctx.send("❌ Invalid number.")
         else:
-            await ctx.send("⚠️ Unexpected error occurred.")
+            await ctx.send("⚠️ Error occurred.")
 
 async def setup(bot):
     await bot.add_cog(Spam(bot))

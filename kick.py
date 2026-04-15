@@ -16,7 +16,17 @@ class Kick(commands.Cog):
 
         if not os.path.exists(self.db_file):
             with open(self.db_file, "w") as f:
-                json.dump({}, f) # Empty dict for guild-based mapping
+                json.dump({}, f)
+
+    # 🔐 PERMISSION CHECK (OWNER BYPASS)
+    def has_perm_or_owner():
+        async def predicate(ctx):
+            if ctx.author.id == ctx.bot.owner_id:
+                return True
+
+            return ctx.author.guild_permissions.kick_members
+
+        return commands.check(predicate)
 
     async def get_next_case(self, guild_id):
         guild_id = str(guild_id)
@@ -32,10 +42,9 @@ class Kick(commands.Cog):
         try:
             with open(self.db_file, "r") as f:
                 data = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
+        except:
             data = {}
 
-        # Initialize guild data if it doesn't exist
         if guild_id not in data:
             data[guild_id] = {"case_count": 0, "cases": {}}
 
@@ -52,35 +61,45 @@ class Kick(commands.Cog):
         with open(self.db_file, "w") as f:
             json.dump(data, f, indent=4)
 
-    @commands.hybrid_command(name="kick", description="Kick a member from the server")
-    @app_commands.describe(member="Member to kick", reason="Reason for the kick (Optional)")
-    @commands.has_permissions(kick_members=True)
+    # 👢 KICK COMMAND
+    @commands.hybrid_command(name="kick", description="Kick a member")
+    @app_commands.describe(member="Member to kick", reason="Reason for the kick")
+    @has_perm_or_owner()
     async def kick(self, ctx, member: discord.Member, *, reason: str = "No reason provided"):
+
         if member.id == ctx.author.id:
             return await ctx.send("❌ You cannot kick yourself.")
-        
-        # Pass Guild ID to get the correct case number for THIS server
+
         case_id = await self.get_next_case(ctx.guild.id)
-        
-        dm_status = ""
+
         try:
-            await member.send(f"👢 You were kicked from **{ctx.guild.name}**\n**Reason:** {reason}\n**Case:** #{case_id}")
-            dm_status = "(user notified with a direct message)"
+            await member.send(
+                f"👢 You were kicked from **{ctx.guild.name}**\n"
+                f"**Reason:** {reason}\n"
+                f"**Case:** #{case_id}"
+            )
         except:
-            dm_status = "(user could not be notified)"
+            pass
 
         try:
             await member.kick(reason=f"Case #{case_id} | {reason}")
-            
-            # Save using Guild ID
+
             self.save_case(ctx.guild.id, case_id, "Kick", member, ctx.author, reason)
-            
-            await ctx.send(f"✅ **Kicked {member.name}** (Case #{case_id}) {dm_status}")
-            
+
+            await ctx.send(f"✅ **Kicked {member.name}** (Case #{case_id})")
+
         except discord.Forbidden:
-            await ctx.send("❌ I don't have permission to kick this user (check role hierarchy).")
+            await ctx.send("❌ I don't have permission or target is higher.")
         except Exception as e:
-            await ctx.send(f"❌ An error occurred: {e}")
+            await ctx.send(f"❌ Error: {e}")
+
+    # ❗ ERROR HANDLER
+    @kick.error
+    async def kick_error(self, ctx, error):
+        if isinstance(error, commands.CheckFailure):
+            await ctx.send("❌ You don't have permission to use this command.")
+        else:
+            await ctx.send("⚠️ Error occurred. Check permissions / role hierarchy.")
 
 async def setup(bot):
     await bot.add_cog(Kick(bot))

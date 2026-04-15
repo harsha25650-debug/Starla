@@ -7,26 +7,45 @@ class MassPing(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.active = {}
-        self.allowed_users = set()  # ✅ access list
+
+    # 📥 GET ACCESS LIST
+    def get_access(self, guild_id):
+        return self.bot.db.get(f"mpaccess.{guild_id}", [])
+
+    # 💾 ADD ACCESS
+    def add_access(self, guild_id, user_id):
+        users = self.get_access(guild_id)
+        if user_id not in users:
+            users.append(user_id)
+            self.bot.db.set(f"mpaccess.{guild_id}", users)
+
+    # ❌ REMOVE ACCESS
+    def remove_access(self, guild_id, user_id):
+        users = self.get_access(guild_id)
+        if user_id in users:
+            users.remove(user_id)
+            self.bot.db.set(f"mpaccess.{guild_id}", users)
+
+    # 🔐 ACCESS CHECK
+    def has_access(self, ctx):
+        users = self.get_access(ctx.guild.id)
+        return ctx.author.id == ctx.bot.owner_id or ctx.author.id in users
 
     def is_running(self, channel_id):
         return self.active.get(channel_id, False)
-
-    def has_access(self, ctx):
-        return ctx.author.id == self.bot.owner_id or ctx.author.id in self.allowed_users
 
     # ✅ GIVE ACCESS
     @commands.command()
     @commands.is_owner()
     async def mpaccess(self, ctx, member: discord.Member):
-        self.allowed_users.add(member.id)
+        self.add_access(ctx.guild.id, member.id)
         await ctx.send(f"✅ MP access granted for {member.mention}")
 
     # ❌ REMOVE ACCESS
     @commands.command()
     @commands.is_owner()
     async def mpremove(self, ctx, member: discord.Member):
-        self.allowed_users.discard(member.id)
+        self.remove_access(ctx.guild.id, member.id)
         await ctx.send(f"❌ MP access removed for {member.mention}")
 
     # 🚀 MASSPING

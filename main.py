@@ -4,7 +4,7 @@ import asyncio
 import json
 import logging
 from discord.ext import commands, tasks
-from discord import Activity, ActivityType
+from discord import Activity, ActivityType, Streaming # 👈 Streaming add kiya
 
 from database import Database
 
@@ -15,7 +15,6 @@ logging.basicConfig(level=logging.INFO)
 def get_prefix(bot, message):
     if not message.guild:
         return "!"
-    # Database se prefix nikalna, default "!"
     return bot.db.get(f"prefix.{message.guild.id}", "!")
 
 # --- BOT CLASS SETUP ---
@@ -25,13 +24,12 @@ class NovaX(commands.Bot):
         super().__init__(
             command_prefix=get_prefix,
             intents=intents,
-            help_command=None, # Custom help command ke liye
+            help_command=None,
             case_insensitive=True
         )
         self.db = None
 
     async def setup_hook(self):
-        # 📁 Data folder aur Database initialize
         os.makedirs("./data", exist_ok=True)
         if not os.path.exists("./data/database.json"):
             with open("./data/database.json", "w") as f:
@@ -39,13 +37,10 @@ class NovaX(commands.Bot):
         
         self.db = Database("data/database.json")
         print("💾 Database connected.")
-
-        # 🔄 Cogs Load karna
         await self.load_extensions()
 
     async def load_extensions(self):
         for filename in os.listdir('./'):
-            # main.py aur database.py ko skip karke baaki sab load karega
             if filename.endswith('.py') and filename not in ['main.py', 'database.py']:
                 try:
                     await self.load_extension(f'{filename[:-3]}')
@@ -59,7 +54,6 @@ class NovaX(commands.Bot):
         print(f"🤖 User: {self.user}")
         print(f"---")
         
-        # Dynamic Status start karna
         if not self.update_status.is_running():
             self.update_status.start()
 
@@ -69,14 +63,19 @@ class NovaX(commands.Bot):
         except Exception as e:
             print(f"⚠️ Sync Error: {e}")
 
-    # --- DYNAMIC STATUS LOOP ---
+    # --- DYNAMIC STATUS LOOP (Purple Dot) ---
     @tasks.loop(minutes=5)
     async def update_status(self):
         server_count = len(self.guilds)
-        # Aap yaha status change kar sakte hain
         status_text = f"NovaX v1.10 | {server_count} Servers"
+        
+        # 🟣 Purple Dot (Streaming Status)
+        # Note: URL dena zaroori hai tabhi purple color aayega
         await self.change_presence(
-            activity=discord.Activity(type=discord.ActivityType.playing, name=status_text)
+            activity=discord.Streaming(
+                name=status_text,
+                url="https://www.twitch.tv/novax_bot" 
+            )
         )
 
 # --- RUNNING THE BOT ---

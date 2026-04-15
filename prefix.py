@@ -1,41 +1,38 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-import json
-import os
 
 class Prefix(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.db_path = "./data"
-        self.prefix_file = "./data/prefixes.json"
-        
-        if not os.path.exists(self.db_path):
-            os.makedirs(self.db_path, exist_ok=True)
 
-        if not os.path.exists(self.prefix_file):
-            with open(self.prefix_file, "w") as f:
-                json.dump({}, f)
+    # 💾 SAVE PREFIX
+    def set_prefix(self, guild_id, prefix):
+        self.bot.db.set(f"prefix.{guild_id}", prefix)
 
-    def save_prefix(self, guild_id, prefix):
-        with open(self.prefix_file, "r") as f:
-            prefixes = json.load(f)
-        
-        prefixes[str(guild_id)] = prefix
-        
-        with open(self.prefix_file, "w") as f:
-            json.dump(prefixes, f, indent=4)
+    # 📥 GET PREFIX (optional use)
+    def get_prefix(self, guild_id):
+        return self.bot.db.get(f"prefix.{guild_id}", "!")
 
-    @commands.hybrid_command(name="setprefix", description="Change the bot's prefix for this server")
-    @app_commands.describe(new_prefix="The new prefix you want to use")
+    # ⚙️ SET PREFIX COMMAND
+    @commands.hybrid_command(name="setprefix", description="Change bot prefix")
+    @app_commands.describe(new_prefix="New prefix")
     @commands.has_permissions(manage_guild=True)
     async def setprefix(self, ctx, new_prefix: str):
-        if len(new_prefix) > 5:
-            return await ctx.send("❌ Prefix 5 characters se zyada lamba nahi ho sakta.")
 
-        self.save_prefix(ctx.guild.id, new_prefix)
-        await ctx.send(f"✅ **Prefix updated!** New prefix is: `{new_prefix}`")
+        if len(new_prefix) > 5:
+            return await ctx.send("❌ Prefix cannot be longer than 5 characters.")
+
+        self.set_prefix(ctx.guild.id, new_prefix)
+
+        embed = discord.Embed(
+            title="⚙️ Prefix Updated",
+            description=f"New prefix is `{new_prefix}`",
+            color=discord.Color.green()
+        )
+        embed.set_footer(text=f"Changed by {ctx.author}", icon_url=ctx.author.display_avatar.url)
+
+        await ctx.send(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(Prefix(bot))
-  

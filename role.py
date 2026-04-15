@@ -1,19 +1,26 @@
 import discord
 from discord.ext import commands
+from discord import app_commands
 
 class Role(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    # 🔁 ROLE TOGGLE COMMAND
-    @commands.command(name="role")
-    async def role(self, ctx, member: discord.Member = None, *, role_name: str = None):
-        """
-        Usage: !role @user RoleName
-        """
+    # 🔐 PERMISSION CHECK (OWNER BYPASS)
+    def has_perm_or_owner():
+        async def predicate(ctx):
+            if ctx.author.id == ctx.bot.owner_id:
+                return True
 
-        if member is None or role_name is None:
-            return await ctx.send("❌ Usage: !role @user <role name>")
+            return ctx.author.guild_permissions.manage_roles
+
+        return commands.check(predicate)
+
+    # 🔁 ROLE TOGGLE (PREFIX + SLASH)
+    @commands.hybrid_command(name="role", description="Add or remove a role")
+    @app_commands.describe(member="Target user", role_name="Role name")
+    @has_perm_or_owner()
+    async def role(self, ctx, member: discord.Member, *, role_name: str):
 
         role = discord.utils.get(ctx.guild.roles, name=role_name)
 
@@ -34,25 +41,18 @@ class Role(commands.Cog):
         except Exception:
             await ctx.send("⚠️ Unexpected error occurred.")
 
-
-    # 🎭 ROLE ICON COMMAND (ONLY ICON)
-    @commands.command(name="roleicon")
-    async def roleicon(self, ctx, role: discord.Role = None, emoji: str = None):
-        """
-        Usage:
-        !roleicon @role 😎
-        !roleicon @role <:emoji:123>
-        """
-
-        if role is None or emoji is None:
-            return await ctx.send("❌ Usage: !roleicon @role <emoji>")
+    # 🎭 ROLE ICON (PREFIX + SLASH)
+    @commands.hybrid_command(name="roleicon", description="Set role icon")
+    @app_commands.describe(role="Target role", emoji="Emoji or custom emoji")
+    @has_perm_or_owner()
+    async def roleicon(self, ctx, role: discord.Role, emoji: str):
 
         try:
-            # 🎭 Unicode emoji
+            # Unicode emoji
             if len(emoji) <= 4:
                 await role.edit(display_icon=emoji.encode("utf-8"))
 
-            # 🔥 Custom emoji
+            # Custom emoji
             elif emoji.startswith("<:") or emoji.startswith("<a:"):
                 emoji_id = int(emoji.split(":")[2][:-1])
                 guild_emoji = discord.utils.get(ctx.guild.emojis, id=emoji_id)
@@ -73,6 +73,14 @@ class Role(commands.Cog):
         except Exception:
             await ctx.send("⚠️ Failed. Server may not support role icons.")
 
+    # ❗ ERROR HANDLER
+    @role.error
+    @roleicon.error
+    async def role_error(self, ctx, error):
+        if isinstance(error, commands.CheckFailure):
+            await ctx.send("❌ You don't have permission to use this command.")
+        else:
+            await ctx.send("⚠️ Error occurred.")
 
 async def setup(bot):
     await bot.add_cog(Role(bot))

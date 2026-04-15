@@ -1,11 +1,12 @@
 import discord
 from discord.ext import commands
+from discord import app_commands
 from datetime import datetime
 
 class SnipeView(discord.ui.View):
     def __init__(self, snipes, user):
         super().__init__(timeout=120)
-        self.snipes = snipes[::-1]  # latest first
+        self.snipes = snipes[::-1]
         self.index = 0
         self.user = user
 
@@ -30,23 +31,9 @@ class SnipeView(discord.ui.View):
             color=discord.Color.purple()
         )
 
-        embed.add_field(
-            name="👤 Author",
-            value=data["author"],
-            inline=False
-        )
-
-        embed.add_field(
-            name="⏱ Deleted",
-            value=self.format_time(data["time"]),
-            inline=False
-        )
-
-        embed.add_field(
-            name="📩 Content",
-            value=data["content"],
-            inline=False
-        )
+        embed.add_field(name="👤 Author", value=data["author"], inline=False)
+        embed.add_field(name="⏱ Deleted", value=self.format_time(data["time"]), inline=False)
+        embed.add_field(name="📩 Content", value=data["content"], inline=False)
 
         embed.set_footer(
             text=f"Requested by {self.user}",
@@ -54,7 +41,6 @@ class SnipeView(discord.ui.View):
         )
 
         embed.set_thumbnail(url=data["avatar"])
-
         return embed
 
     async def interaction_check(self, interaction):
@@ -92,6 +78,16 @@ class Snipe(commands.Cog):
         self.bot = bot
         self.snipes = {}
 
+    # 🔐 PERMISSION CHECK (OWNER BYPASS)
+    def has_perm_or_owner():
+        async def predicate(ctx):
+            if ctx.author.id == ctx.bot.owner_id:
+                return True
+
+            return ctx.author.guild_permissions.manage_messages
+
+        return commands.check(predicate)
+
     @commands.Cog.listener()
     async def on_message_delete(self, message):
         if message.author.bot:
@@ -109,18 +105,27 @@ class Snipe(commands.Cog):
 
         self.snipes[message.channel.id].append(data)
 
-        # keep only last 20 messages
         if len(self.snipes[message.channel.id]) > 20:
             self.snipes[message.channel.id].pop(0)
 
-    @commands.command()
+    # 🔍 SNIPE COMMAND (PREFIX + SLASH)
+    @commands.hybrid_command(name="snipe", description="View deleted messages")
+    @has_perm_or_owner()
     async def snipe(self, ctx):
+
         if ctx.channel.id not in self.snipes or not self.snipes[ctx.channel.id]:
             return await ctx.send("No recently deleted messages.")
 
         view = SnipeView(self.snipes[ctx.channel.id], ctx.author)
         await ctx.send(embed=view.get_embed(), view=view)
 
+    # ❗ ERROR HANDLER
+    @snipe.error
+    async def snipe_error(self, ctx, error):
+        if isinstance(error, commands.CheckFailure):
+            await ctx.send("❌ You don't have permission to use this command.")
+        else:
+            await ctx.send("⚠️ Error occurred.")
 
 async def setup(bot):
     await bot.add_cog(Snipe(bot))

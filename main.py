@@ -6,17 +6,13 @@ from discord.ext import commands
 
 from database import Database  # ✅ DATABASE IMPORT
 
-# --- PREFIX LOGIC ---
+
+# --- PREFIX LOGIC (✅ DATABASE BASED) ---
 def get_prefix(bot, message):
     if not message.guild:
-        return "!"  
-
-    try:
-        with open("./data/prefixes.json", "r") as f:
-            prefixes = json.load(f)
-        return prefixes.get(str(message.guild.id), "!")
-    except (FileNotFoundError, json.JSONDecodeError):
         return "!"
+    
+    return bot.db.get(f"prefix.{message.guild.id}", "!")
 
 
 # --- BOT SETUP ---
@@ -33,7 +29,6 @@ bot.db = Database("data/database.json")
 async def on_ready():
     print(f"✅ Bot is online: {bot.user}")
 
-    # 📦 Database load check
     print("💾 Database loaded successfully")
 
     # 🔥 Sync slash commands
@@ -54,11 +49,6 @@ async def load_extensions():
     # 📁 Ensure database file exists
     if not os.path.exists("./data/database.json"):
         with open("./data/database.json", "w") as f:
-            json.dump({}, f)
-
-    # 📁 Ensure prefixes file exists
-    if not os.path.exists("./data/prefixes.json"):
-        with open("./data/prefixes.json", "w") as f:
             json.dump({}, f)
 
     # 🔄 Load all cogs

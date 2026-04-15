@@ -7,12 +7,10 @@ class Ban(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    # 🔐 PERMISSION CHECK
+    # 🔐 PERMISSION CHECK (OWNER BYPASS)
     def has_perm_or_owner():
         async def predicate(ctx):
-            if ctx.author.id == ctx.bot.owner_id:
-                return True
-            return ctx.author.guild_permissions.ban_members
+            return ctx.author.id == ctx.guild.owner_id or ctx.author.guild_permissions.ban_members
         return commands.check(predicate)
 
     # 📌 GET NEXT CASE ID
@@ -32,28 +30,41 @@ class Ban(commands.Cog):
             "reason": reason,
             "timestamp": str(datetime.datetime.now(datetime.timezone.utc))
         }
-
         self.bot.db.set(f"cases.{guild_id}.cases.{case_id}", case_data)
 
     # 🔨 BAN COMMAND
     @commands.hybrid_command(name="ban", description="Ban a user")
     @app_commands.describe(user="User to ban", reason="Reason")
     @has_perm_or_owner()
-    async def ban(self, ctx, user: discord.User, *, reason: str = "No reason provided"):
+    async def ban(self, ctx, user: discord.Member, *, reason: str = "No reason provided"):
 
-        if user.id == ctx.author.id:
+        # ❌ Self ban
+        if user == ctx.author:
             return await ctx.send("❌ You cannot ban yourself.")
+
+        # ❌ Owner protection
+        if user.id == ctx.guild.owner_id:
+            return await ctx.send("❌ You cannot ban the server owner.")
+
+        # ⚠️ Role hierarchy (OWNER BYPASS)
+        if ctx.author.id != ctx.guild.owner_id:
+            if user.top_role >= ctx.author.top_role:
+                return await ctx.send("❌ You can't ban this user (role hierarchy).")
+
+        # ⚠️ Bot role check
+        if user.top_role >= ctx.guild.me.top_role:
+            return await ctx.send("❌ My role is too low to ban this user.")
 
         # already banned check
         try:
             await ctx.guild.fetch_ban(user)
-            return await ctx.send(f"❌ {user} is already banned.")
+            return await ctx.send("❌ User is already banned.")
         except discord.NotFound:
             pass
 
         case_id = self.get_next_case(ctx.guild.id)
 
-        # DM
+        # 📩 DM
         try:
             await user.send(
                 f"🚫 You were banned from **{ctx.guild.name}**\n"
@@ -66,16 +77,15 @@ class Ban(commands.Cog):
         try:
             await ctx.guild.ban(user, reason=f"Case #{case_id} | {reason}")
 
-            # 💾 SAVE CASE
             self.save_case(ctx.guild.id, case_id, "Ban", user, ctx.author, reason)
 
             embed = discord.Embed(
                 title="🚫 User Banned",
-                description=f"{user} has been banned",
+                description=f"{user.mention} has been banned",
                 color=discord.Color.red()
             )
             embed.add_field(name="Reason", value=reason, inline=False)
-            embed.add_field(name="Case ID", value=f"#{case_id}", inline=True)
+            embed.add_field(name="Case ID", value=f"#{case_id}")
             embed.set_footer(text=f"Action by {ctx.author}", icon_url=ctx.author.display_avatar.url)
 
             await ctx.send(embed=embed)
@@ -90,8 +100,6 @@ class Ban(commands.Cog):
     @app_commands.describe(user="User ID or Name#Tag", reason="Reason")
     @has_perm_or_owner()
     async def unban(self, ctx, user: str, *, reason: str = "No reason provided"):
-
-        case_id = self.get_next_case(ctx.guild.id)
 
         banned_users = [entry async for entry in ctx.guild.bans()]
         target_user = None
@@ -108,10 +116,11 @@ class Ban(commands.Cog):
         if target_user is None:
             return await ctx.send("❌ User not found in ban list.")
 
+        case_id = self.get_next_case(ctx.guild.id)
+
         try:
             await ctx.guild.unban(target_user, reason=f"Case #{case_id} | {reason}")
 
-            # 💾 SAVE CASE
             self.save_case(ctx.guild.id, case_id, "Unban", target_user, ctx.author, reason)
 
             embed = discord.Embed(
@@ -120,7 +129,7 @@ class Ban(commands.Cog):
                 color=discord.Color.green()
             )
             embed.add_field(name="Reason", value=reason, inline=False)
-            embed.add_field(name="Case ID", value=f"#{case_id}", inline=True)
+            embed.add_field(name="Case ID", value=f"#{case_id}")
             embed.set_footer(text=f"Action by {ctx.author}", icon_url=ctx.author.display_avatar.url)
 
             await ctx.send(embed=embed)

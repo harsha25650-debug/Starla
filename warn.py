@@ -1,86 +1,125 @@
 import discord
 from discord.ext import commands
-import json
-import os
+import datetime
 
 class Warn(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.db_file = "cases.json"
 
-    def get_data(self):
-        if not os.path.exists(self.db_file):
-            return {"case_count": 0, "user_warns": {}}
-        with open(self.db_file, "r") as f:
-            return json.load(f)
+    # 📌 GET NEXT CASE ID
+    def get_next_case(self, guild_id):
+        path = f"cases.{guild_id}.case_count"
+        case_id = self.bot.db.get(path, 0) + 1
+        self.bot.db.set(path, case_id)
+        return case_id
 
-    def save_data(self, data):
-        with open(self.db_file, "w") as f:
-            json.dump(data, f, indent=4)
+    # 💾 SAVE CASE
+    def save_case(self, guild_id, case_id, action, target, moderator, reason):
+        case_data = {
+            "action": action,
+            "target_id": target.id,
+            "target_name": str(target),
+            "moderator": str(moderator),
+            "reason": reason,
+            "timestamp": str(datetime.datetime.now(datetime.timezone.utc))
+        }
 
-    @commands.command()
+        self.bot.db.set(f"cases.{guild_id}.cases.{case_id}", case_data)
+
+    # ⚠️ WARN COMMAND
+    @commands.hybrid_command(name="warn", description="Warn a user")
     @commands.has_permissions(manage_messages=True)
     async def warn(self, ctx, member: discord.Member, *, reason="No reason provided"):
+
         if member.bot:
             return await ctx.send("❌ You cannot warn a bot.")
-        
-        data = self.get_data()
-        
-        # Case ID update
-        case_id = data.get("case_count", 0) + 1
-        data["case_count"] = case_id
-        
-        # User warns count update
+
+        guild_id = ctx.guild.id
         user_id = str(member.id)
-        if "user_warns" not in data:
-            data["user_warns"] = {}
-            
-        current_warns = data["user_warns"].get(user_id, 0) + 1
-        data["user_warns"][user_id] = current_warns
-        
-        # Case detail save karna
-        data[str(case_id)] = {
-            "action": "Warn",
-            "target": str(member),
-            "moderator": str(ctx.author),
-            "reason": f"{reason} (Warn #{current_warns})"
-        }
-        
-        self.save_data(data)
 
-        # Photo jaisa response
-        await ctx.send(f"✅ **Warned {member.name}** (Case #{case_id}) (user notified with a direct message)")
+        # 🔢 WARN COUNT
+        warns = self.bot.db.get(f"warns.{guild_id}.{user_id}", 0) + 1
+        self.bot.db.set(f"warns.{guild_id}.{user_id}", warns)
 
-        # DM Notification
+        # 📌 CASE ID
+        case_id = self.get_next_case(guild_id)
+
+        # 💾 SAVE CASE
+        self.save_case(guild_id, case_id, "Warn", member, ctx.author, f"{reason} (Warn #{warns})")
+
+        # 📢 EMBED RESPONSE
+        embed = discord.Embed(
+            title="⚠️ User Warned",
+            description=f"{member.mention} has been warned",
+            color=discord.Color.orange()
+        )
+        embed.add_field(name="Reason", value=reason, inline=False)
+        embed.add_field(name="Warnings", value=f"{warns}/3", inline=True)
+        embed.add_field(name="Case ID", value=f"#{case_id}", inline=True)
+        embed.set_footer(text=f"Action by {ctx.author}", icon_url=ctx.author.display_avatar.url)
+
+        await ctx.send(embed=embed)
+
+        # 📩 DM
         try:
-            await member.send(f"⚠️ You have been warned in **{ctx.guild.name}**\n**Reason:** {reason}\n**Warning Count:** {current_warns}/3\n**Case:** #{case_id}")
+            await member.send(
+                f"⚠️ You were warned in **{ctx.guild.name}**\n"
+                f"Reason: {reason}\n"
+                f"Warnings: {warns}/3\n"
+                f"Case: #{case_id}"
+            )
         except:
             pass
 
-        # AUTO-KICK LOGIC (3 Warns hone par)
-        if current_warns >= 3:
+        # 👢 AUTO KICK (3 WARNS)
+        if warns >= 3:
             try:
-                await member.kick(reason="Exceeded 3 warnings limit.")
-                await ctx.send(f"👢 **{member.name}** has been automatically kicked for reaching 3 warnings.")
-                # Warn counter reset kar dena kick ke baad
-                data["user_warns"][user_id] = 0
-                self.save_data(data)
-            except:
-                await ctx.send(f"❌ Could not auto-kick {member.name}. Check my permissions.")
+                await member.kick(reason="Exceeded 3 warnings")
 
-    @commands.command()
+                kick_case = self.get_next_case(guild_id)
+                self.save_case(guild_id, kick_case, "Auto Kick", member, ctx.author, "Exceeded 3 warnings")
+
+                self.bot.db.set(f"warns.{guild_id}.{user_id}", 0)
+
+                await ctx.send(f"👢 {member.mention} was kicked for reaching 3 warnings.")
+
+            except:
+                await ctx.send("❌ Failed to auto-kick. Check permissions.")
+
+    # 🔻 UNWARN
+    @commands.hybrid_command(name="unwarn", description="Remove a warning")
     @commands.has_permissions(manage_messages=True)
     async def unwarn(self, ctx, member: discord.Member):
-        data = self.get_data()
+
+        guild_id = ctx.guild.id
         user_id = str(member.id)
-        
-        if user_id in data.get("user_warns", {}) and data["user_warns"][user_id] > 0:
-            data["user_warns"][user_id] -= 1
-            self.save_data(data)
-            await ctx.send(f"✅ Removed 1 warning from **{member.name}**. Total warns: {data['user_warns'][user_id]}")
+
+        warns = self.bot.db.get(f"warns.{guild_id}.{user_id}", 0)
+
+        if warns <= 0:
+            return await ctx.send(f"❌ {member.mention} has no warnings.")
+
+        warns -= 1
+        self.bot.db.set(f"warns.{guild_id}.{user_id}", warns)
+
+        embed = discord.Embed(
+            title="✅ Warning Removed",
+            description=f"Removed 1 warning from {member.mention}",
+            color=discord.Color.green()
+        )
+        embed.add_field(name="Current Warns", value=f"{warns}/3")
+        embed.set_footer(text=f"Action by {ctx.author}", icon_url=ctx.author.display_avatar.url)
+
+        await ctx.send(embed=embed)
+
+    # ❗ ERROR HANDLER
+    @warn.error
+    @unwarn.error
+    async def warn_error(self, ctx, error):
+        if isinstance(error, commands.MissingPermissions):
+            await ctx.send("❌ You need Manage Messages permission.")
         else:
-            await ctx.send(f"❌ **{member.name}** has no warnings.")
+            await ctx.send("⚠️ Error occurred.")
 
 async def setup(bot):
     await bot.add_cog(Warn(bot))
-            

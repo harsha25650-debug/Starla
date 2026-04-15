@@ -11,41 +11,50 @@ class Role(commands.Cog):
         async def predicate(ctx):
             if ctx.author.id == ctx.bot.owner_id:
                 return True
-
             return ctx.author.guild_permissions.manage_roles
-
         return commands.check(predicate)
 
-    # 🔁 ROLE TOGGLE (PREFIX + SLASH)
+    # 🔁 ROLE TOGGLE (BEST VERSION - USES ROLE OBJECT)
     @commands.hybrid_command(name="role", description="Add or remove a role")
-    @app_commands.describe(member="Target user", role_name="Role name")
+    @app_commands.describe(member="Target user", role="Select role")
     @has_perm_or_owner()
-    async def role(self, ctx, member: discord.Member, *, role_name: str):
+    async def role(self, ctx, member: discord.Member, role: discord.Role):
 
-        role = discord.utils.get(ctx.guild.roles, name=role_name)
+        # 🚨 BOT PERMISSION CHECK
+        if not ctx.guild.me.guild_permissions.manage_roles:
+            return await ctx.send("⛔ I need **Manage Roles** permission.")
 
-        if role is None:
-            return await ctx.send(f"❌ Role `{role_name}` not found.")
+        # 🚨 ROLE POSITION CHECK
+        if role >= ctx.guild.me.top_role:
+            return await ctx.send("⛔ This role is higher than my role.")
+
+        # 🚨 MEMBER CHECK
+        if member.top_role >= ctx.guild.me.top_role:
+            return await ctx.send("⛔ I can't modify this user's roles.")
 
         try:
             if role in member.roles:
-                await member.remove_roles(role)
+                await member.remove_roles(role, reason=f"Removed by {ctx.author}")
                 await ctx.send(f"❌ Role `{role.name}` removed from {member.mention} ✔️")
             else:
-                await member.add_roles(role)
+                await member.add_roles(role, reason=f"Added by {ctx.author}")
                 await ctx.send(f"✅ Role `{role.name}` added to {member.mention} ✔️")
 
         except discord.Forbidden:
-            await ctx.send("⛔ I don't have permission to manage this role.")
+            await ctx.send("⛔ Permission denied (role hierarchy issue).")
 
-        except Exception:
-            await ctx.send("⚠️ Unexpected error occurred.")
+        except Exception as e:
+            await ctx.send(f"⚠️ Error: {e}")
 
-    # 🎭 ROLE ICON (PREFIX + SLASH)
+    # 🎭 ROLE ICON COMMAND
     @commands.hybrid_command(name="roleicon", description="Set role icon")
-    @app_commands.describe(role="Target role", emoji="Emoji or custom emoji")
+    @app_commands.describe(role="Target role", emoji="Emoji")
     @has_perm_or_owner()
     async def roleicon(self, ctx, role: discord.Role, emoji: str):
+
+        # 🚨 ROLE POSITION CHECK
+        if role >= ctx.guild.me.top_role:
+            return await ctx.send("⛔ This role is higher than my role.")
 
         try:
             # Unicode emoji
@@ -70,7 +79,7 @@ class Role(commands.Cog):
         except discord.Forbidden:
             await ctx.send("⛔ I don't have permission to edit this role.")
 
-        except Exception:
+        except Exception as e:
             await ctx.send("⚠️ Failed. Server may not support role icons.")
 
     # ❗ ERROR HANDLER
@@ -80,7 +89,7 @@ class Role(commands.Cog):
         if isinstance(error, commands.CheckFailure):
             await ctx.send("❌ You don't have permission to use this command.")
         else:
-            await ctx.send("⚠️ Error occurred.")
+            await ctx.send(f"⚠️ Error: {error}")
 
 async def setup(bot):
     await bot.add_cog(Role(bot))

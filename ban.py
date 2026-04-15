@@ -16,7 +16,17 @@ class Ban(commands.Cog):
 
         if not os.path.exists(self.db_file):
             with open(self.db_file, "w") as f:
-                json.dump({}, f) # Empty dictionary for guild-based mapping
+                json.dump({}, f)
+
+    # 🔐 PERMISSION CHECK (OWNER BYPASS)
+    def has_perm_or_owner():
+        async def predicate(ctx):
+            if ctx.author.id == ctx.bot.owner_id:
+                return True
+
+            return ctx.author.guild_permissions.ban_members
+
+        return commands.check(predicate)
 
     async def get_next_case(self, guild_id):
         guild_id = str(guild_id)
@@ -32,10 +42,9 @@ class Ban(commands.Cog):
         try:
             with open(self.db_file, "r") as f:
                 data = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
+        except:
             data = {}
 
-        # Initialize guild data if it doesn't exist
         if guild_id not in data:
             data[guild_id] = {"case_count": 0, "cases": {}}
 
@@ -53,48 +62,50 @@ class Ban(commands.Cog):
             json.dump(data, f, indent=4)
 
     # 🔨 BAN COMMAND
-    @commands.hybrid_command(name="ban", description="Ban a user (works with ID even if they aren't in the server)")
-    @app_commands.describe(user="User to ban (ID or @mention)", reason="Reason for the ban (Optional)")
-    @commands.has_permissions(ban_members=True)
+    @commands.hybrid_command(name="ban", description="Ban a user")
+    @app_commands.describe(user="User to ban", reason="Reason for the ban")
+    @has_perm_or_owner()
     async def ban(self, ctx, user: discord.User, *, reason: str = "No reason provided"):
+
         if user.id == ctx.author.id:
             return await ctx.send("❌ You cannot ban yourself.")
-        
+
         try:
             await ctx.guild.fetch_ban(user)
             return await ctx.send(f"❌ **{user.name}** is already banned.")
         except discord.NotFound:
             pass
 
-        # Pass Guild ID to get the correct case number
         case_id = await self.get_next_case(ctx.guild.id)
-        
-        dm_status = ""
+
         try:
-            await user.send(f"🚫 You were banned from **{ctx.guild.name}**\n**Reason:** {reason}\n**Case:** #{case_id}")
-            dm_status = "(user notified with a direct message)"
+            await user.send(
+                f"🚫 You were banned from **{ctx.guild.name}**\n"
+                f"**Reason:** {reason}\n"
+                f"**Case:** #{case_id}"
+            )
         except:
-            dm_status = "(user could not be notified)"
+            pass
 
         try:
             await ctx.guild.ban(user, reason=f"Case #{case_id} | {reason}")
-            # Save using Guild ID
             self.save_case(ctx.guild.id, case_id, "Ban", user, ctx.author, reason)
-            
-            await ctx.send(f"✅ **Banned {user.name}** (Case #{case_id}) {dm_status}")
+
+            await ctx.send(f"✅ **Banned {user.name}** (Case #{case_id})")
+
         except discord.Forbidden:
-            await ctx.send("❌ I don't have permission to ban this user.")
+            await ctx.send("❌ I don't have permission or target is higher.")
         except Exception as e:
-            await ctx.send(f"❌ An error occurred: {e}")
+            await ctx.send(f"❌ Error: {e}")
 
     # 🔓 UNBAN COMMAND
-    @commands.hybrid_command(name="unban", description="Unban a user from the server")
+    @commands.hybrid_command(name="unban", description="Unban a user")
     @app_commands.describe(user="User ID or Name#Tag", reason="Reason for unban")
-    @commands.has_permissions(ban_members=True)
+    @has_perm_or_owner()
     async def unban(self, ctx, user: str, *, reason: str = "No reason provided"):
-        # Pass Guild ID to get the correct case number
+
         case_id = await self.get_next_case(ctx.guild.id)
-        
+
         banned_users = [entry async for entry in ctx.guild.bans()]
         target_user = None
 
@@ -104,15 +115,25 @@ class Ban(commands.Cog):
                 break
 
         if target_user is None:
-            return await ctx.send("❌ User not found in server ban list.")
+            return await ctx.send("❌ User not found in ban list.")
 
         try:
             await ctx.guild.unban(target_user, reason=f"Case #{case_id} | {reason}")
-            # Save using Guild ID
             self.save_case(ctx.guild.id, case_id, "Unban", target_user, ctx.author, reason)
+
             await ctx.send(f"✅ **Unbanned {target_user.name}** (Case #{case_id})")
+
         except discord.Forbidden:
-            await ctx.send("❌ I don't have permission to unban users.")
+            await ctx.send("❌ I don't have permission to unban.")
+
+    # ❗ ERROR HANDLER
+    @ban.error
+    @unban.error
+    async def ban_error(self, ctx, error):
+        if isinstance(error, commands.CheckFailure):
+            await ctx.send("❌ You don't have permission to use this command.")
+        else:
+            await ctx.send("⚠️ Error occurred. Check permissions / role hierarchy.")
 
 async def setup(bot):
     await bot.add_cog(Ban(bot))

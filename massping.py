@@ -26,10 +26,22 @@ class MassPing(commands.Cog):
             users.remove(user_id)
             self.bot.db.set(f"mpaccess.{guild_id}", users)
 
-    # 🔐 ACCESS CHECK
-    def has_access(self, ctx):
+    # 🔐 UPDATED ACCESS CHECK
+    async def check_permissions(self, ctx):
+        # 1. Check if Bot Owner
+        if await self.bot.is_owner(ctx.author):
+            return True
+        
+        # 2. Check if Server Owner
+        if ctx.author.id == ctx.guild.owner_id:
+            return True
+            
+        # 3. Check Database Access List
         users = self.get_access(ctx.guild.id)
-        return ctx.author.id == ctx.bot.owner_id or ctx.author.id in users
+        if ctx.author.id in users:
+            return True
+            
+        return False
 
     def is_running(self, channel_id):
         return self.active.get(channel_id, False)
@@ -51,31 +63,26 @@ class MassPing(commands.Cog):
     # 🚀 MASSPING
     @commands.command()
     async def massping(self, ctx, member: discord.Member, amount: int):
-
-        if not self.has_access(ctx):
-            return await ctx.send("❌ You don't have permission.")
+        if not await self.check_permissions(ctx):
+            return await ctx.send("❌ Access denied | owner/premiumUser only command")
 
         if amount <= 0:
             return await ctx.send("Invalid amount.")
 
         if self.is_running(ctx.channel.id):
-            return await ctx.send("⚠️ Already running.")
+            return await ctx.send("⚠️ Already running in this channel.")
 
         self.active[ctx.channel.id] = True
         await ctx.send(f"⚡ Starting mass ping x{amount}")
 
         sent = 0
-
         while sent < amount:
-            if not self.is_running(ctx.channel.id):
-                return await ctx.send("🛑 Stopped.")
+            if not self.active.get(ctx.channel.id):
+                return # Task stopped via mpstop
 
             batch = min(5, amount - sent)
-
             for _ in range(batch):
-                if not self.is_running(ctx.channel.id):
-                    return await ctx.send("🛑 Stopped.")
-
+                if not self.active.get(ctx.channel.id): break
                 await ctx.send(member.mention)
                 sent += 1
 
@@ -87,25 +94,20 @@ class MassPing(commands.Cog):
     # ⚡ FAST LOOP
     @commands.command()
     async def mploop(self, ctx, member: discord.Member, amount: int):
+        if not await self.check_permissions(ctx):
+            return await ctx.send("❌ Access denied | owner/premiumUser only command")
 
-        if not self.has_access(ctx):
-            return await ctx.send("❌ You don't have permission.")
-
-        if amount > 500:
-            return await ctx.send("Max limit is 500.")
-
-        if amount <= 0:
-            return await ctx.send("Invalid amount.")
+        if amount > 500: amount = 500
+        if amount <= 0: return
 
         self.active[ctx.channel.id] = True
         await ctx.send(f"⚡ Fast loop ping x{amount}")
 
         for i in range(amount):
-            if not self.is_running(ctx.channel.id):
+            if not self.active.get(ctx.channel.id):
                 return await ctx.send("🛑 Stopped.")
 
             await ctx.send(member.mention)
-
             if i % 5 == 0:
                 await asyncio.sleep(0.2)
 
@@ -115,40 +117,27 @@ class MassPing(commands.Cog):
     # 🚀 FAST MESSAGE
     @commands.command()
     async def mpfast(self, ctx, member: discord.Member, amount: int):
+        if not await self.check_permissions(ctx):
+            return await ctx.send("❌ Access denied | owner/premiumUser only command")
 
-        if not self.has_access(ctx):
-            return await ctx.send("❌ You don't have permission.")
-
-        if amount > 87:
-            return await ctx.send("Max 87 per message.")
-
-        if amount <= 0:
-            return
+        if amount > 87: amount = 87
+        if amount <= 0: return
 
         self.active[ctx.channel.id] = True
-
-        msg = ""
-        for _ in range(amount):
-            if not self.is_running(ctx.channel.id):
-                return await ctx.send("🛑 Stopped.")
-
-            msg += member.mention + " "
-
+        msg = " ".join([member.mention for _ in range(amount)])
+        
         await ctx.send(msg)
         self.active[ctx.channel.id] = False
 
     # 👻 GHOSTPING
     @commands.command()
+    @commands.bot_has_permissions(manage_messages=True)
     async def ghostping(self, ctx, member: discord.Member, amount: int):
+        if not await self.check_permissions(ctx):
+            return await ctx.send("❌ Access denied | owner/premiumUser only command")
 
-        if not self.has_access(ctx):
-            return await ctx.send("❌ You don't have permission.")
-
-        if amount > 500:
-            return await ctx.send("Max 500 ghost pings.")
-
-        if amount <= 0:
-            return
+        if amount > 500: amount = 500
+        if amount <= 0: return
 
         self.active[ctx.channel.id] = True
 
@@ -158,12 +147,11 @@ class MassPing(commands.Cog):
             pass
 
         for _ in range(amount):
-            if not self.is_running(ctx.channel.id):
-                return
+            if not self.active.get(ctx.channel.id):
+                break
 
             msg = await ctx.send(member.mention)
-            await asyncio.sleep(random.uniform(0.15, 0.3))
-
+            await asyncio.sleep(0.2)
             try:
                 await msg.delete()
             except:
@@ -174,15 +162,14 @@ class MassPing(commands.Cog):
     # 🛑 STOP
     @commands.command()
     async def mpstop(self, ctx):
-
-        if not self.has_access(ctx):
-            return await ctx.send("❌ You don't have permission.")
+        if not await self.check_permissions(ctx):
+            return await ctx.send("❌ Access denied | owner/premiumUser only command")
 
         if self.is_running(ctx.channel.id):
             self.active[ctx.channel.id] = False
-            await ctx.send("🛑 All ping tasks stopped.")
+            await ctx.send("🛑 All ping tasks stopped for this channel.")
         else:
-            await ctx.send("Nothing running.")
+            await ctx.send("Nothing is running here.")
 
 async def setup(bot):
     await bot.add_cog(MassPing(bot))

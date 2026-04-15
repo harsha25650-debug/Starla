@@ -1,7 +1,8 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from datetime import datetime
+import datetime
+import asyncio
 
 class SnipeView(discord.ui.View):
     def __init__(self, snipes, user):
@@ -10,8 +11,11 @@ class SnipeView(discord.ui.View):
         self.index = 0
         self.user = user
 
-    def format_time(self, time):
-        diff = datetime.utcnow() - datetime.fromisoformat(time)
+    def format_time(self, time_str):
+        # Using aware datetimes to avoid errors
+        past_time = datetime.datetime.fromisoformat(time_str)
+        now = discord.utils.utcnow()
+        diff = now - past_time
         seconds = int(diff.total_seconds())
 
         if seconds < 60:
@@ -46,8 +50,11 @@ class SnipeView(discord.ui.View):
         embed.set_thumbnail(url=data["avatar"])
         return embed
 
-    async def interaction_check(self, interaction):
-        return interaction.user == self.user
+    async def interaction_check(self, interaction: discord.Interaction):
+        if interaction.user != self.user:
+            await interaction.response.send_message("❌ This menu is not for you.", ephemeral=True)
+            return False
+        return True
 
     @discord.ui.button(emoji="⏪", style=discord.ButtonStyle.secondary)
     async def first(self, interaction: discord.Interaction, button):
@@ -80,22 +87,23 @@ class Snipe(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    # 🔐 PERMISSION CHECK
+    # 🔐 FIXED PERMISSION CHECK
     def has_perm_or_owner():
         async def predicate(ctx):
-            if ctx.author.id == ctx.bot.owner_id:
+            # Allow Bot Owner or Server Owner
+            if ctx.author.id == ctx.bot.owner_id or ctx.author.id == ctx.guild.owner_id:
                 return True
-            return ctx.author.guild_permissions.manage_messages
+            # Allow Administrators or people who can Manage Messages
+            return ctx.author.guild_permissions.administrator or ctx.author.guild_permissions.manage_messages
         return commands.check(predicate)
 
     # 🧠 SAVE SNIPE
     def save_snipe(self, channel_id, data):
         path = f"snipes.{channel_id}"
         snipes = self.bot.db.get(path, [])
-
         snipes.append(data)
 
-        if len(snipes) > 20:
+        if len(snipes) > 20: # Keep last 20 messages
             snipes.pop(0)
 
         self.bot.db.set(path, snipes)
@@ -107,7 +115,7 @@ class Snipe(commands.Cog):
     # 📡 LISTENER
     @commands.Cog.listener()
     async def on_message_delete(self, message):
-        if message.author.bot:
+        if message.author.bot or not message.guild:
             return
 
         attachment = None
@@ -115,24 +123,23 @@ class Snipe(commands.Cog):
             attachment = message.attachments[0].url
 
         data = {
-            "content": message.content if message.content else "*No content*",
+            "content": message.content if message.content else "*No text content (likely an embed or image)*",
             "author": message.author.mention,
             "avatar": message.author.display_avatar.url,
-            "time": datetime.utcnow().isoformat(),
+            "time": discord.utils.utcnow().isoformat(),
             "attachment": attachment
         }
 
         self.save_snipe(message.channel.id, data)
 
     # 🔍 COMMAND
-    @commands.hybrid_command(name="snipe", description="View deleted messages")
+    @commands.hybrid_command(name="snipe", description="View recently deleted messages")
     @has_perm_or_owner()
     async def snipe(self, ctx):
-
         snipes = self.get_snipes(ctx.channel.id)
 
         if not snipes:
-            return await ctx.send("❌ No recently deleted messages.")
+            return await ctx.send("❌ No recently deleted messages found in this channel.")
 
         view = SnipeView(snipes, ctx.author)
         await ctx.send(embed=view.get_embed(), view=view)
@@ -141,9 +148,9 @@ class Snipe(commands.Cog):
     @snipe.error
     async def snipe_error(self, ctx, error):
         if isinstance(error, commands.CheckFailure):
-            await ctx.send("❌ You don't have permission.")
+            await ctx.send("❌ You don't have permission (Manage Messages required).")
         else:
-            await ctx.send("⚠️ Error occurred.")
+            await ctx.send(f"⚠️ An error occurred: `{error}`")
 
 async def setup(bot):
     await bot.add_cog(Snipe(bot))

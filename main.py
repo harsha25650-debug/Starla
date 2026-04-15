@@ -4,28 +4,37 @@ import asyncio
 import json
 from discord.ext import commands
 
+from database import Database  # ✅ DATABASE IMPORT
+
 # --- PREFIX LOGIC ---
 def get_prefix(bot, message):
     if not message.guild:
-        return "!"  # Default prefix for DMs
+        return "!"  
 
     try:
-        # data/prefixes.json se prefix uthayega
         with open("./data/prefixes.json", "r") as f:
             prefixes = json.load(f)
-        return prefixes.get(str(message.guild.id), "!") 
+        return prefixes.get(str(message.guild.id), "!")
     except (FileNotFoundError, json.JSONDecodeError):
-        return "!"  # Agar file na mile toh default "!"
+        return "!"
+
 
 # --- BOT SETUP ---
-intents = discord.Intents.all() # Moderation bots ke liye 'all' intents best rehte hain
+intents = discord.Intents.all()
 
 bot = commands.Bot(command_prefix=get_prefix, intents=intents)
 bot.remove_command('help')
 
+# ✅ DATABASE ATTACH (GLOBAL ACCESS)
+bot.db = Database("data/database.json")
+
+
 @bot.event
 async def on_ready():
     print(f"✅ Bot is online: {bot.user}")
+
+    # 📦 Database load check
+    print("💾 Database loaded successfully")
 
     # 🔥 Sync slash commands
     try:
@@ -34,35 +43,47 @@ async def on_ready():
     except Exception as e:
         print(f"❌ Sync failed: {e}")
 
+
 # --- EXTENSION LOADER ---
 async def load_extensions():
-    # Folder check for 'data' directory (used by your modules)
+
+    # 📁 Ensure data folder exists
     if not os.path.exists("./data"):
         os.makedirs("./data")
 
-    # Extension loading logic
+    # 📁 Ensure database file exists
+    if not os.path.exists("./data/database.json"):
+        with open("./data/database.json", "w") as f:
+            json.dump({}, f)
+
+    # 📁 Ensure prefixes file exists
+    if not os.path.exists("./data/prefixes.json"):
+        with open("./data/prefixes.json", "w") as f:
+            json.dump({}, f)
+
+    # 🔄 Load all cogs
     for filename in os.listdir('./'):
-        # Sirf .py files aur jo main files nahi hain unhe load karega
-        if filename.endswith('.py') and filename not in ['main.py', 'db.py']:
+        if filename.endswith('.py') and filename not in ['main.py', 'database.py']:
             try:
                 await bot.load_extension(f'{filename[:-3]}')
                 print(f'✅ Loaded extension: {filename}')
             except Exception as e:
                 print(f'❌ Failed to load {filename}: {e}')
 
+
 async def main():
     async with bot:
         await load_extensions()
-        # Token ko environment variable ya direct string se replace karein
-        token = os.getenv("TOKEN") 
+
+        token = os.getenv("TOKEN")
         if token:
             await bot.start(token)
         else:
             print("❌ Error: TOKEN environment variable nahi mila!")
+
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         print("🔴 Bot is shutting down...")
-        

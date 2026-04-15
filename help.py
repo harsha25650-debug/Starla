@@ -4,9 +4,6 @@ from discord import app_commands
 import json
 import os
 
-# Bot branding
-BANNER_URL = "https://cdn.discordapp.com/attachments/1432767818075738242/1493536131403481118/1775935922918.png?ex=69df536a&is=69de01ea&hm=143e2e9e62a23474072913dc3ee3a94d30d4b845a910ea5e7add13a707400681&"
-
 
 class HelpDropdown(discord.ui.Select):
     def __init__(self, bot, guild_prefix):
@@ -28,15 +25,16 @@ class HelpDropdown(discord.ui.Select):
         )
 
     async def callback(self, interaction: discord.Interaction):
-        embed = discord.Embed(color=0x2b2d31)
+        embed = discord.Embed(color=0x9b59b6)
         p = self.prefix
 
-        # ⭐ BOT ICON (SIDE / THUMBNAIL)
+        # Bot icon
         if self.bot.user.avatar:
             embed.set_thumbnail(url=self.bot.user.avatar.url)
 
-        # Keep banner always on top area
-        embed.set_image(url=BANNER_URL)
+        # Bot banner (AUTO)
+        if self.bot.user.banner:
+            embed.set_image(url=self.bot.user.banner.url)
 
         if self.values[0] == "Moderation":
             embed.title = "🔨 Moderation Module"
@@ -99,11 +97,11 @@ class Help(commands.Cog):
         self.bot = bot
 
     @commands.hybrid_command(name="help", description="Browse bot commands")
-    async def help(self, ctx):
+    async def help(self, ctx: commands.Context):
         guild_prefix = "!"
         prefix_file = "./data/prefixes.json"
 
-        if os.path.exists(prefix_file):
+        if ctx.guild and os.path.exists(prefix_file):
             try:
                 with open(prefix_file, "r") as f:
                     prefixes = json.load(f)
@@ -113,19 +111,19 @@ class Help(commands.Cog):
 
         p = guild_prefix
 
-        # MAIN EMBED
         embed = discord.Embed(
             title="✨ NovaX | Command Center",
             description="Use the menu below to explore bot commands.",
-            color=0x2b2d31
+            color=0x9b59b6
         )
 
-        # ⭐ BOT ICON (MAIN EMBED SIDE)
+        # Bot icon
         if self.bot.user.avatar:
             embed.set_thumbnail(url=self.bot.user.avatar.url)
 
-        # ⭐ BANNER ABOVE SELECT MENU
-        embed.set_image(url=BANNER_URL)
+        # Bot banner (AUTO)
+        if self.bot.user.banner:
+            embed.set_image(url=self.bot.user.banner.url)
 
         embed.add_field(name="🔨 Moderation", value="`ban`, `kick`, `mute`, `clear`", inline=True)
         embed.add_field(name="⚙️ Utility", value="`afk`, `say`, `dm`, `ping`", inline=True)
@@ -133,7 +131,7 @@ class Help(commands.Cog):
 
         embed.add_field(
             name="ℹ️ Usage Guide",
-            value=f"Use `{p}help` and select a category from dropdown.",
+            value=f"Use `{p}help` or `/help` and select a category from dropdown.",
             inline=False
         )
 
@@ -141,7 +139,11 @@ class Help(commands.Cog):
 
         view = HelpView(self.bot, p, embed)
 
-        await ctx.send(embed=embed, view=view)
+        # Hybrid response (slash + prefix both)
+        if ctx.interaction:
+            await ctx.interaction.response.send_message(embed=embed, view=view)
+        else:
+            await ctx.send(embed=embed, view=view)
 
 
 async def setup(bot):

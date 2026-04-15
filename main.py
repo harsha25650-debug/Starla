@@ -2,79 +2,100 @@ import discord
 import os
 import asyncio
 import json
-from discord.ext import commands
+import logging
+from discord.ext import commands, tasks
+from discord import Activity, ActivityType
 
 from database import Database
 
+# --- LOGGING SETUP ---
+logging.basicConfig(level=logging.INFO)
 
-# --- PREFIX LOGIC (DATABASE BASED) ---
+# --- PREFIX LOGIC ---
 def get_prefix(bot, message):
     if not message.guild:
         return "!"
-    
+    # Database se prefix nikalna, default "!"
     return bot.db.get(f"prefix.{message.guild.id}", "!")
 
+# --- BOT CLASS SETUP ---
+class NovaX(commands.Bot):
+    def __init__(self):
+        intents = discord.Intents.all()
+        super().__init__(
+            command_prefix=get_prefix,
+            intents=intents,
+            help_command=None, # Custom help command ke liye
+            case_insensitive=True
+        )
+        self.db = None
 
-# --- BOT SETUP ---
-intents = discord.Intents.all()
-
-bot = commands.Bot(command_prefix=get_prefix, intents=intents)
-bot.remove_command('help')
-
-
-@bot.event
-async def on_ready():
-    print(f"✅ Bot is online: {bot.user}")
-    print("💾 Database loaded successfully")
-
-    try:
-        synced = await bot.tree.sync()
-        print(f"✅ Synced {len(synced)} slash commands globally")
-    except Exception as e:
-        print(f"❌ Sync failed: {e}")
-
-
-# --- EXTENSION LOADER ---
-async def load_extensions():
-
-    # 📁 Ensure data folder exists
-    os.makedirs("./data", exist_ok=True)
-
-    # 🔄 Load all cogs
-    for filename in os.listdir('./'):
-        if filename.endswith('.py') and filename not in ['main.py', 'database.py']:
-            try:
-                await bot.load_extension(f'{filename[:-3]}')
-                print(f'✅ Loaded extension: {filename}')
-            except Exception as e:
-                print(f'❌ Failed to load {filename}: {e}')
-
-
-async def main():
-    async with bot:
-
-        # 📁 Ensure data folder exists
+    async def setup_hook(self):
+        # 📁 Data folder aur Database initialize
         os.makedirs("./data", exist_ok=True)
-
-        # 📁 Ensure database file exists (🔥 FIX)
         if not os.path.exists("./data/database.json"):
             with open("./data/database.json", "w") as f:
                 json.dump({}, f)
+        
+        self.db = Database("data/database.json")
+        print("💾 Database connected.")
 
-        # ✅ DATABASE attach (🔥 IMPORTANT FIX)
-        bot.db = Database("data/database.json")
+        # 🔄 Cogs Load karna
+        await self.load_extensions()
 
-        await load_extensions()
+    async def load_extensions(self):
+        for filename in os.listdir('./'):
+            # main.py aur database.py ko skip karke baaki sab load karega
+            if filename.endswith('.py') and filename not in ['main.py', 'database.py']:
+                try:
+                    await self.load_extension(f'{filename[:-3]}')
+                    print(f'✅ Loaded: {filename}')
+                except Exception as e:
+                    print(f'❌ Failed {filename}: {e}')
 
-        token = os.getenv("TOKEN")
-        if token:
+    async def on_ready(self):
+        print(f"---")
+        print(f"✅ NovaX v1.10 is Online")
+        print(f"🤖 User: {self.user}")
+        print(f"---")
+        
+        # Dynamic Status start karna
+        if not self.update_status.is_running():
+            self.update_status.start()
+
+        try:
+            synced = await self.tree.sync()
+            print(f"✨ Synced {len(synced)} Slash Commands")
+        except Exception as e:
+            print(f"⚠️ Sync Error: {e}")
+
+    # --- DYNAMIC STATUS LOOP ---
+    @tasks.loop(minutes=5)
+    async def update_status(self):
+        server_count = len(self.guilds)
+        # Aap yaha status change kar sakte hain
+        status_text = f"NovaX v1.10 | {server_count} Servers"
+        await self.change_presence(
+            activity=discord.Activity(type=discord.ActivityType.playing, name=status_text)
+        )
+
+# --- RUNNING THE BOT ---
+async def run_bot():
+    bot = NovaX()
+    
+    token = os.getenv("TOKEN")
+    if not token:
+        print("❌ Error: TOKEN environment variable nahi mila!")
+        return
+
+    async with bot:
+        try:
             await bot.start(token)
-        else:
-            print("❌ Error: TOKEN environment variable nahi mila!")
-
+        except KeyboardInterrupt:
+            print("🔴 Shutting down...")
 
 if __name__ == "__main__":
     try:
-        asyncio.run(main())
+        asyncio.run(run_bot())
     except KeyboardInterrupt:
-        print("🔴 Bot is shutting down...")
+        pass

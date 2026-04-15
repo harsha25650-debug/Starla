@@ -1,47 +1,63 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-import json
-import os
 import datetime
 
 class CaseSystem(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.db_file = "./data/cases.json"
 
-    @commands.hybrid_command(name="case", description="Retrieve details of a moderation case for this server")
-    @app_commands.describe(case_id="The case ID (e.g. 1 or #1)")
+    @commands.hybrid_command(name="case", description="Retrieve a moderation case")
+    @app_commands.describe(case_id="Case ID (e.g. 1 or #1)")
     async def case(self, ctx, *, case_id: str):
-        # 1. Input clean-up
+
+        # 🧹 CLEAN INPUT
         clean_id = case_id.replace("#", "").strip()
         guild_id = str(ctx.guild.id)
 
-        if not os.path.exists(self.db_file):
-            return await ctx.send("❌ No cases recorded yet.")
+        # 📥 FETCH FROM DATABASE
+        case_data = self.bot.db.get(f"cases.{guild_id}.cases.{clean_id}")
 
-        with open(self.db_file, "r") as f:
-            data = json.load(f)
+        if not case_data:
+            return await ctx.send(f"❌ Case #{clean_id} not found.")
 
-        # 2. Check if this server has any data
-        if guild_id not in data or clean_id not in data[guild_id]["cases"]:
-            return await ctx.send(f"❌ Case #{clean_id} not found for this server.")
+        # ⏱ TIME PARSE
+        try:
+            timestamp = datetime.datetime.fromisoformat(
+                case_data["timestamp"].replace("Z", "+00:00")
+            )
+        except:
+            timestamp = discord.utils.utcnow()
 
-        info = data[guild_id]["cases"][clean_id]
-        
-        # 3. Embed Response
+        # 🎨 EMBED
         embed = discord.Embed(
-            title=f"Case #{clean_id} | {info['action']}",
-            color=0x2b2d31,
-            timestamp=datetime.datetime.fromisoformat(info['timestamp'].replace('Z', '+00:00'))
+            title=f"📁 Case #{clean_id} | {case_data['action']}",
+            color=discord.Color.blurple(),
+            timestamp=timestamp
         )
-        embed.add_field(name="👤 User", value=f"**{info['target_name']}**\n(`{info['target_id']}`)", inline=True)
-        embed.add_field(name="🛡️ Moderator", value=f"{info['moderator']}", inline=True)
-        embed.add_field(name="📝 Reason", value=f"```{info['reason']}```", inline=False)
+
+        embed.add_field(
+            name="👤 User",
+            value=f"**{case_data['target_name']}**\n(`{case_data['target_id']}`)",
+            inline=True
+        )
+
+        embed.add_field(
+            name="🛡️ Moderator",
+            value=f"{case_data['moderator']}",
+            inline=True
+        )
+
+        embed.add_field(
+            name="📝 Reason",
+            value=f"```{case_data['reason']}```",
+            inline=False
+        )
+
         embed.set_footer(text=f"Server: {ctx.guild.name}")
-        
+
         await ctx.send(embed=embed)
+
 
 async def setup(bot):
     await bot.add_cog(CaseSystem(bot))
-        

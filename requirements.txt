@@ -1,7 +1,7 @@
-discord.py
+discord.py[voice]
 python-dotenv
 flask
 aiosqlite
-pyNaCl
+PyNaCl
 yt-dlp
 asyncio

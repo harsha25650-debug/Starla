@@ -8,16 +8,19 @@ import asyncio
 class Mute(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        # Custom Emojis
+        self.caution_icon = "<a:GF_Caution:1494212827865415730>"
+        self.loading_icon = "<a:spider_red_dot:1494179666133516411>"
+        self.success_icon = "<a:greentick:1494180392440303777>"
+        self.cross_icon = "<a:spider_cross:1494181311525687347>"
 
-    # 🔐 FIXED PERMISSION CHECK
+    # 🔐 FIXED PERMISSION CHECK (Owner Bypass)
     def has_perm_or_owner():
         async def predicate(ctx):
-            # Allow Bot Owner (from config) OR Server Owner
             if ctx.author.id == ctx.bot.owner_id or ctx.author.id == ctx.guild.owner_id:
                 return True
 
             perms = ctx.author.guild_permissions
-            # Allow Administrators or people with Moderate/Manage Roles perms
             return perms.administrator or perms.manage_roles or perms.moderate_members
         return commands.check(predicate)
 
@@ -25,15 +28,13 @@ class Mute(commands.Cog):
     def convert_time(self, time_str):
         if not time_str:
             return None
-
         time_str = time_str.lower().strip()
         patterns = {
             r"(\d+)\s*(s|sec|second)": 1,
             r"(\d+)\s*(m|min|minute)": 60,
             r"(\d+)\s*(h|hr|hour)": 3600,
-            r"(\d+)\s*(d|day)": 86400
+            r"(\d+)\s*(d|day)": 84600
         }
-
         for pattern, multiplier in patterns.items():
             match = re.match(pattern, time_str)
             if match:
@@ -66,10 +67,10 @@ class Mute(commands.Cog):
 
         # 🚨 HIERARCHY CHECK
         if member.id == ctx.guild.owner_id:
-            return await ctx.send("❌ I cannot mute the Server Owner.")
+            return await ctx.send(f"{self.cross_icon} **I cannot mute the Server Owner.**")
 
         if member.top_role >= ctx.guild.me.top_role:
-            return await ctx.send("❌ **Hierarchy Error**: My role must be higher than this user's role to mute them.")
+            return await ctx.send(f"{self.cross_icon} **Hierarchy Error**: My role must be higher than theirs.")
 
         case_id = self.get_next_case(ctx.guild.id)
         display_duration = f"for {duration}" if duration else "permanently"
@@ -79,7 +80,7 @@ class Mute(commands.Cog):
         action_used = "Mute Role"
 
         # 🔁 Try Timeout first (Modern Discord Mute)
-        if seconds and seconds <= 2419200: # 28 days limit
+        if seconds and seconds <= 2419200:
             try:
                 until = discord.utils.utcnow() + datetime.timedelta(seconds=seconds)
                 await member.timeout(until, reason=reason)
@@ -95,23 +96,34 @@ class Mute(commands.Cog):
                     for channel in ctx.guild.channels:
                         await channel.set_permissions(muted_role, send_messages=False, speak=False)
                 except discord.Forbidden:
-                    return await ctx.send("❌ I don't have permission to create the 'Muted' role.")
+                    return await ctx.send(f"{self.cross_icon} **I don't have permission to create roles.**")
 
             await member.add_roles(muted_role, reason=reason)
 
-        # 💾 SAVE & NOTIFY
+        # 💾 SAVE CASE
         self.save_case(ctx.guild.id, case_id, action_used, member, ctx.author, f"{reason} | {display_duration}")
 
+        # 📩 DM (Using Caution Emoji)
         try:
-            await member.send(f"🔇 You were {action_used.lower()} in **{ctx.guild.name}**\nDuration: {display_duration}\nReason: {reason}")
+            await member.send(
+                f"{self.caution_icon} **You were {action_used.lower()} in {ctx.guild.name}**\n"
+                f"**Duration:** {display_duration}\n"
+                f"**Reason:** {reason}\n"
+                f"**Case:** #{case_id}"
+            )
         except:
             pass
 
-        embed = discord.Embed(title="🔇 Member Muted", color=discord.Color.orange())
-        embed.add_field(name="User", value=member.mention, inline=True)
-        embed.add_field(name="Duration", value=display_duration, inline=True)
+        # 📢 RESPONSE (Black Embed)
+        embed = discord.Embed(
+            description=f"{self.loading_icon} **{member.mention} has been muted**",
+            color=0x000000
+        )
+        embed.add_field(name="Duration", value=f"`{display_duration}`", inline=True)
         embed.add_field(name="Case ID", value=f"#{case_id}", inline=True)
-        embed.set_footer(text=f"Moderator: {ctx.author}", icon_url=ctx.author.display_avatar.url)
+        embed.add_field(name="Reason", value=reason, inline=False)
+        embed.set_footer(text=f"Action by {ctx.author}", icon_url=ctx.author.display_avatar.url)
+        
         await ctx.send(embed=embed)
 
         # ⏳ AUTO UNMUTE
@@ -124,13 +136,17 @@ class Mute(commands.Cog):
     @mute.error
     async def mute_error(self, ctx, error):
         if isinstance(error, commands.MissingRequiredArgument):
-            await ctx.send("❌ Please provide a user. Usage: `!mute <@user> [time] [reason]`")
+            await ctx.send(f"{self.cross_icon} **Usage:** `!mute <@user> [time] [reason]`")
         elif isinstance(error, commands.CheckFailure):
-            await ctx.send("❌ You do not have permission to use this command.")
+            embed = discord.Embed(
+                description=f"{self.cross_icon} **Access denied | owner/premiumUser only command**", 
+                color=0x000000
+            )
+            await ctx.send(embed=embed)
         elif isinstance(error, commands.BotMissingPermissions):
-            await ctx.send("❌ I am missing the required permissions (Manage Roles / Moderate Members).")
+            await ctx.send(f"{self.cross_icon} **I am missing permissions (Manage Roles / Moderate Members).**")
         else:
-            await ctx.send(f"⚠️ An unexpected error occurred: `{error}`")
+            await ctx.send(f"{self.cross_icon} **Error:** `{error}`")
 
 async def setup(bot):
     await bot.add_cog(Mute(bot))

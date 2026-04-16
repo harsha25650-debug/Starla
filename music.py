@@ -6,6 +6,7 @@ import asyncio
 import datetime
 import os
 import shutil
+import subprocess
 
 # --- CONFIG ---
 ydl_opts = {
@@ -62,17 +63,23 @@ class Music(commands.Cog):
         self.success = "<a:greentick:1494180392440303777>"
         self.cross = "<a:spider_cross:1494181311525687347>"
 
-    def find_ffmpeg(self):
-        """Railway/Nixpacks par FFmpeg path dhoondne ke liye function"""
-        # 1. System path check karein
+    def get_ffmpeg_path(self):
+        """Aggressive FFmpeg path finder for Railway Nixpacks"""
+        # 1. Try standard which command
         path = shutil.which("ffmpeg")
         if path: return path
         
-        # 2. Common Linux locations check karein
-        locations = ["/usr/bin/ffmpeg", "/usr/local/bin/ffmpeg", "/nix/var/nix/profiles/default/bin/ffmpeg"]
-        for loc in locations:
+        # 2. Try common Nix/Linux paths
+        for loc in ["/usr/bin/ffmpeg", "/usr/local/bin/ffmpeg", "/nix/var/nix/profiles/default/bin/ffmpeg"]:
             if os.path.exists(loc): return loc
-        return "ffmpeg" # Fallback
+            
+        # 3. Try to find it using shell (Nuclear option)
+        try:
+            shell_path = subprocess.check_output(["which", "ffmpeg"]).decode().strip()
+            if shell_path: return shell_path
+        except: pass
+        
+        return "ffmpeg"
 
     @commands.hybrid_command(name="play", aliases=["p"], description="Play music")
     @app_commands.describe(search="Song name or link")
@@ -96,12 +103,19 @@ class Music(commands.Cog):
                 except:
                     return await ctx.send(f"{self.cross} No results found.")
 
+            # --- UPDATED PLAY LOGIC ---
+            exe_path = self.get_ffmpeg_path()
             try:
-                ffmpeg_exe = self.find_ffmpeg()
-                source = await discord.FFmpegOpusAudio.from_probe(url, executable=ffmpeg_exe, **FFMPEG_OPTIONS)
+                # Try simple FFmpegOpusAudio first
+                source = discord.FFmpegOpusAudio(url, executable=exe_path, **FFMPEG_OPTIONS)
                 ctx.voice_client.play(source)
             except Exception as e:
-                return await ctx.send(f"{self.cross} **Voice Error:** `{e}`\nCheck Railway logs and nixpacks.toml!")
+                # Fallback to probe if direct fails
+                try:
+                    source = await discord.FFmpegOpusAudio.from_probe(url, executable=exe_path, **FFMPEG_OPTIONS)
+                    ctx.voice_client.play(source)
+                except Exception as final_e:
+                    return await ctx.send(f"{self.cross} **FFmpeg Error:** `{final_e}`\nCheck `nixpacks.toml` and Rebuild.")
 
         embed = discord.Embed(color=0x000000)
         embed.set_image(url=info.get('thumbnail'))
@@ -145,3 +159,4 @@ class Music(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(Music(bot))
+    

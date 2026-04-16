@@ -14,6 +14,7 @@ ydl_opts = {
     'quiet': True,
     'extract_flat': True,
     'source_address': '0.0.0.0',
+    'nocheckcertificate': True,
 }
 
 FFMPEG_OPTIONS = {
@@ -63,19 +64,13 @@ class Music(commands.Cog):
         self.cross = "<a:spider_cross:1494181311525687347>"
 
     def get_ffmpeg_path(self):
-        """Forcefully find and authorize FFmpeg path"""
+        """Forcefully authorize and find FFmpeg binary"""
         local_ffmpeg = os.path.join(os.getcwd(), "ffmpeg")
         if os.path.exists(local_ffmpeg):
-            try:
-                os.chmod(local_ffmpeg, 0o755) # Ensuring it's executable
-            except:
-                pass
+            try: os.chmod(local_ffmpeg, 0o755)
+            except: pass
             return local_ffmpeg
-            
-        path = shutil.which("ffmpeg")
-        if path: return path
-        
-        return "ffmpeg"
+        return shutil.which("ffmpeg") or "ffmpeg"
 
     @commands.hybrid_command(name="play", aliases=["p"], description="Play music")
     @app_commands.describe(search="Song name or link")
@@ -84,47 +79,37 @@ class Music(commands.Cog):
             return await ctx.send(f"{self.cross} You must be in a Voice Channel!")
 
         if not ctx.voice_client:
-            try:
-                await ctx.author.voice.channel.connect()
-            except Exception as e:
-                return await ctx.send(f"{self.cross} Could not connect to VC: `{e}`")
+            await ctx.author.voice.channel.connect()
 
-        # Initial Search Message
         msg = await ctx.send(f"{self.loading} Searching for `{search}`...")
 
         async with ctx.typing():
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 try:
                     info = ydl.extract_info(f"ytsearch:{search}", download=False)['entries'][0]
-                    url = info['url']
-                except Exception:
-                    return await msg.edit(content=f"{self.cross} No results found for `{search}`.")
+                    # URL aur Webpage safety fix
+                    url = info.get('url')
+                    web_url = info.get('webpage_url', f"https://www.youtube.com/watch?v={info.get('id')}")
+                except Exception as e:
+                    return await msg.edit(content=f"{self.cross} Search error: `{e}`")
 
             exe_path = self.get_ffmpeg_path()
             
             try:
-                # Primary Play Attempt
-                source = discord.FFmpegOpusAudio(url, executable=exe_path, **FFMPEG_OPTIONS)
+                # Railway Code -11 Fix: Direct Probe to Opus
+                source = await discord.FFmpegOpusAudio.from_probe(url, executable=exe_path, **FFMPEG_OPTIONS)
                 ctx.voice_client.play(source)
             except Exception as e:
-                try:
-                    # Fallback Attempt
-                    source = await discord.FFmpegOpusAudio.from_probe(url, executable=exe_path, **FFMPEG_OPTIONS)
-                    ctx.voice_client.play(source)
-                except Exception as final_e:
-                    return await msg.edit(content=f"{self.cross} **Audio Engine Error:** `{final_e}`\nTry restarting the bot on Railway.")
+                return await msg.edit(content=f"{self.cross} **Audio Engine Error:** `{e}`\nPlease try again in a few seconds.")
 
-        # Success Embed
         embed = discord.Embed(color=0x000000)
         embed.set_image(url=info.get('thumbnail'))
         embed.description = (
             f"{self.music_record} **Now Playing...**\n\n"
-            f"{self.blue_arrow} **[{info['title']}]({info['webpage_url']})**\n"
-            f"{self.green_arrow} **{info['uploader']}**\n\n"
+            f"{self.blue_arrow} **[{info.get('title')}]({web_url})**\n"
             f"{self.green_arrow} Requested by: {ctx.author.mention}\n"
-            f"{self.green_arrow} {self.music_record} **YouTube Music**"
         )
-        embed.set_footer(text=f"Duration: {str(datetime.timedelta(seconds=info['duration']))}")
+        embed.set_footer(text=f"Duration: {str(datetime.timedelta(seconds=info.get('duration', 0)))}")
         
         await msg.edit(content=None, embed=embed, view=MusicView(self.bot))
 
@@ -157,3 +142,4 @@ class Music(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(Music(bot))
+            

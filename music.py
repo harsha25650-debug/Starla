@@ -15,6 +15,7 @@ ydl_opts = {
     'extract_flat': True,
     'source_address': '0.0.0.0',
     'nocheckcertificate': True,
+    'default_search': 'ytsearch',
 }
 
 FFMPEG_OPTIONS = {
@@ -42,9 +43,9 @@ class MusicView(discord.ui.View):
     @discord.ui.button(label="▶I", style=discord.ButtonStyle.secondary)
     async def skip_btn(self, interaction: discord.Interaction, button):
         vc = interaction.guild.voice_client
-        if vc and vc.is_playing():
+        if vc and (vc.is_playing() or vc.is_paused()):
             vc.stop()
-            await interaction.response.send_message("⏭️ **Skipped via Buttons!**", ephemeral=True)
+            await interaction.response.send_message("⏭️ **Skipped!**", ephemeral=True)
 
     @discord.ui.button(label="■", style=discord.ButtonStyle.secondary)
     async def stop_btn(self, interaction: discord.Interaction, button):
@@ -56,8 +57,8 @@ class MusicView(discord.ui.View):
 class Music(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.queue = {} # Guild ID based queues
-        self.volume = {} # Guild ID based volume
+        self.queue = {}
+        self.volume = {} # Default 1.0 (100%)
         
         # Emojis
         self.loading = "<a:spider_red_dot:1494179666133516411>"
@@ -75,28 +76,26 @@ class Music(commands.Cog):
         return shutil.which("ffmpeg") or "ffmpeg"
 
     def check_queue(self, ctx):
-        if self.queue[ctx.guild.id]:
-            # Next song in queue
+        if ctx.guild.id in self.queue and self.queue[ctx.guild.id]:
             next_song = self.queue[ctx.guild.id].pop(0)
             asyncio.run_coroutine_threadsafe(self.play_music(ctx, next_song, is_next=True), self.bot.loop)
 
-    async def play_music(self, ctx, song_info, is_next=False):
+    async def play_music(self, ctx, info, is_next=False):
+        url = info.get('url')
         exe_path = self.get_ffmpeg_path()
-        url = song_info['url']
         
+        # Audio fix: Using PCMVolumeTransformer for better audio delivery
         source = await discord.FFmpegOpusAudio.from_probe(url, executable=exe_path, **FFMPEG_OPTIONS)
-        
-        # Volume set karna (Default 1.0 = 100%)
-        guild_vol = self.volume.get(ctx.guild.id, 1.0)
-        source = discord.PCMVolumeTransformer(source, volume=guild_vol)
+        vol = self.volume.get(ctx.guild.id, 1.0)
+        transformed_source = discord.PCMVolumeTransformer(source, volume=vol)
 
-        ctx.voice_client.play(source, after=lambda e: self.check_queue(ctx))
+        ctx.voice_client.play(transformed_source, after=lambda e: self.check_queue(ctx))
 
         if is_next:
-            embed = self.get_embed(song_info, ctx.author)
+            embed = self.create_embed(info, ctx.author)
             await ctx.send(embed=embed, view=MusicView(self.bot))
 
-    def get_embed(self, info, author):
+    def create_embed(self, info, author):
         web_url = info.get('webpage_url', f"https://www.youtube.com/watch?v={info.get('id')}")
         embed = discord.Embed(color=0x000000)
         if info.get('thumbnail'):
@@ -108,24 +107,23 @@ class Music(commands.Cog):
             f"{self.green_arrow} **Requested by:** {author.mention}"
         )
         duration = str(datetime.timedelta(seconds=info.get('duration', 0)))
-        embed.set_footer(text=f"Duration: {duration} | Volume: {int(self.volume.get(author.guild.id, 1.0)*100)}%")
+        vol_percent = int(self.volume.get(author.guild.id, 1.0) * 100)
+        embed.set_footer(text=f"Duration: {duration} | Volume: {vol_percent}%")
         return embed
 
-    @commands.hybrid_command(name="play", aliases=["p"], description="Play music or add to queue")
-    @app_commands.describe(search="Song name or link")
+    @commands.hybrid_command(name="play", aliases=["p"], description="Play music")
     async def play(self, ctx, *, search: str):
         if not ctx.author.voice:
-            return await ctx.send(f"{self.cross} You must be in a Voice Channel!")
+            return await ctx.send(f"{self.cross} Join a Voice Channel!")
 
         if not ctx.voice_client:
             await ctx.author.voice.channel.connect()
 
-        if ctx.guild.id not in self.queue:
-            self.queue[ctx.guild.id] = []
-        if ctx.guild.id not in self.volume:
-            self.volume[ctx.guild.id] = 1.0
+        # Init Queue and Vol for guild
+        if ctx.guild.id not in self.queue: self.queue[ctx.guild.id] = []
+        if ctx.guild.id not in self.volume: self.volume[ctx.guild.id] = 1.0
 
-        msg = await ctx.send(f"{self.loading} Processing `{search}`...")
+        msg = await ctx.send(f"{self.loading} Searching for `{search}`...")
 
         async with ctx.typing():
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -136,44 +134,41 @@ class Music(commands.Cog):
 
             if ctx.voice_client.is_playing() or ctx.voice_client.is_paused():
                 self.queue[ctx.guild.id].append(info)
-                return await msg.edit(content=f"📝 **Added to Queue:** `{info['title']}` (Position: {len(self.queue[ctx.guild.id])})")
-            
+                return await msg.edit(content=f"📝 **Added to Queue:** `{info['title']}`")
+
             await self.play_music(ctx, info)
-            
-        embed = self.get_embed(info, ctx.author)
+
+        embed = self.create_embed(info, ctx.author)
         await msg.edit(content=None, embed=embed, view=MusicView(self.bot))
 
     @commands.hybrid_command(name="skip", aliases=["s"], description="Skip current song")
     async def skip(self, ctx):
-        if ctx.voice_client and ctx.voice_client.is_playing():
+        if ctx.voice_client and (ctx.voice_client.is_playing() or ctx.voice_client.is_paused()):
             ctx.voice_client.stop()
-            await ctx.send(f"⏭️ **Skipped by {ctx.author.name}!**")
+            await ctx.send("⏭️ **Song Skipped!**")
         else:
-            await ctx.send(f"{self.cross} Nothing is playing right now.")
+            await ctx.send(f"{self.cross} Nothing is playing.")
 
-    @commands.hybrid_command(name="volume", aliases=["vol"], description="Change bot volume (0-100)")
-    @app_commands.describe(amount="Volume amount from 0 to 100")
+    @commands.hybrid_command(name="volume", aliases=["vol"], description="Change volume 0-100")
     async def set_volume(self, ctx, amount: int):
-        if not ctx.voice_client:
-            return await ctx.send(f"{self.cross} I'm not in a VC!")
+        if not ctx.voice_client: return await ctx.send(f"{self.cross} I'm not in VC.")
         
         if 0 <= amount <= 100:
-            vol_decimal = amount / 100
-            self.volume[ctx.guild.id] = vol_decimal
+            vol_dec = amount / 100
+            self.volume[ctx.guild.id] = vol_dec
             if ctx.voice_client.source:
-                ctx.voice_client.source.volume = vol_decimal
+                ctx.voice_client.source.volume = vol_dec
             await ctx.send(f"🔊 **Volume set to {amount}%**")
         else:
-            await ctx.send(f"{self.cross} Please enter a number between 0 and 100.")
+            await ctx.send("Enter volume between 0-100.")
 
-    @commands.hybrid_command(name="stop", description="Stop music and clear queue")
-    async def stop(self, ctx):
-        if ctx.guild.id in self.queue:
-            self.queue[ctx.guild.id] = []
-        if ctx.voice_client:
-            await ctx.voice_client.disconnect()
-            await ctx.send("⏹️ **Stopped and Queue cleared!**")
+    @commands.hybrid_command(name="nonstop", aliases=["247"], description="24/7 Mode")
+    async def toggle_247(self, ctx):
+        guild_id = str(ctx.guild.id)
+        current = self.bot.db.get(f"247_{guild_id}", False)
+        self.bot.db.set(f"247_{guild_id}", not current)
+        status = "Activated" if not current else "Deactivated"
+        await ctx.send(f"✅ **24/7 Mode {status}!**")
 
 async def setup(bot):
     await bot.add_cog(Music(bot))
-    

@@ -24,26 +24,49 @@ def run_health_server():
             self.send_response(200)
             self.end_headers()
             self.wfile.write(b"Bot is Alive!")
+        def log_message(self, format, *args):
+            return # Quiet logs
 
-    server = HTTPServer(('0.0.0.0', int(os.environ.get("PORT", 8080))), Handler)
+    port = int(os.environ.get("PORT", 8080))
+    server = HTTPServer(('0.0.0.0', port), Handler)
+    print(f"🌍 Health server running on port {port}")
     server.serve_forever()
 
-# --- ☢️ DIRECT FFMPEG INSTALLER ---
+# --- ☢️ STABLE FFMPEG INSTALLER (Fix for Code -11) ---
 def install_ffmpeg():
     local_ffmpeg = "./ffmpeg"
     if not os.path.exists(local_ffmpeg):
-        print("📥 FFmpeg not found, downloading direct build...")
+        print("📥 FFmpeg not found, downloading stable build...")
         try:
-            # Direct link to a stable static build
-            url = "https://github.com/eugeneware/ffmpeg-static/releases/download/b4.4/linux-x64"
+            # Code -11 fix ke liye ye build sabse stable hai Railway par
+            url = "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz"
+            archive_name = "ffmpeg.tar.xz"
             
             headers = {'User-Agent': 'Mozilla/5.0'}
             req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req) as response, open("ffmpeg", 'wb') as out_file:
+            with urllib.request.urlopen(req) as response, open(archive_name, 'wb') as out_file:
                 shutil.copyfileobj(response, out_file)
             
-            os.chmod("./ffmpeg", 0o755)
-            print("✅ FFmpeg (Direct Binary) installed successfully!")
+            # Extract using system tar
+            subprocess.run(f"tar -xf {archive_name}", shell=True)
+            
+            # Binary dhoond kar main folder mein move karna
+            for root, dirs, files in os.walk("."):
+                if "ffmpeg" in files and "bin" in root:
+                    ffmpeg_src = os.path.join(root, "ffmpeg")
+                    shutil.move(ffmpeg_src, "./ffmpeg")
+                    break
+            
+            if os.path.exists("./ffmpeg"):
+                os.chmod("./ffmpeg", 0o755)
+                print("✅ Stable FFmpeg installed successfully!")
+            
+            # Cleanup
+            if os.path.exists(archive_name): os.remove(archive_name)
+            # Purane extracted folders remove karna
+            for item in os.listdir("."):
+                if os.path.isdir(item) and "ffmpeg-master" in item:
+                    shutil.rmtree(item)
                 
         except Exception as e:
             print(f"❌ Failed to install FFmpeg: {e}")
@@ -63,7 +86,7 @@ class NovaX(commands.Bot):
         self.db = None
 
     async def setup_hook(self):
-        # 1. Start Health Server in background
+        # 1. Start Health Server
         threading.Thread(target=run_health_server, daemon=True).start()
         
         # 2. Install FFmpeg
@@ -79,11 +102,13 @@ class NovaX(commands.Bot):
     async def load_extensions(self):
         for filename in os.listdir('./'):
             if filename.endswith('.py') and filename not in ['main.py', 'database.py']:
-                try: await self.load_extension(f'{filename[:-3]}')
+                try: await self.load_extension(filename[:-3])
                 except Exception as e: print(f'❌ Failed {filename}: {e}')
 
     async def on_ready(self):
+        print(f"---")
         print(f"✅ NovaX v1.10 Online | {self.user}")
+        print(f"---")
         if not self.update_status.is_running(): self.update_status.start()
         await self.tree.sync()
 
@@ -100,3 +125,4 @@ async def run_bot():
 
 if __name__ == "__main__":
     asyncio.run(run_bot())
+    

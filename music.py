@@ -64,21 +64,20 @@ class Music(commands.Cog):
         self.cross = "<a:spider_cross:1494181311525687347>"
 
     def get_ffmpeg_path(self):
-        """Aggressive FFmpeg path finder for Railway Nixpacks"""
-        # 1. Try standard which command
+        """Railway par local FFmpeg priority ke saath dhoondne ke liye logic"""
+        # 1. Check karein agar main.py ne local folder mein download kiya hai
+        local_path = "./ffmpeg"
+        if os.path.exists(local_path):
+            return local_path
+            
+        # 2. Check standard system path
         path = shutil.which("ffmpeg")
         if path: return path
         
-        # 2. Try common Nix/Linux paths
+        # 3. Fallback common Linux paths
         for loc in ["/usr/bin/ffmpeg", "/usr/local/bin/ffmpeg", "/nix/var/nix/profiles/default/bin/ffmpeg"]:
             if os.path.exists(loc): return loc
             
-        # 3. Try to find it using shell (Nuclear option)
-        try:
-            shell_path = subprocess.check_output(["which", "ffmpeg"]).decode().strip()
-            if shell_path: return shell_path
-        except: pass
-        
         return "ffmpeg"
 
     @commands.hybrid_command(name="play", aliases=["p"], description="Play music")
@@ -103,19 +102,20 @@ class Music(commands.Cog):
                 except:
                     return await ctx.send(f"{self.cross} No results found.")
 
-            # --- UPDATED PLAY LOGIC ---
+            # --- DYNAMIC FFmpeg DETECTION ---
             exe_path = self.get_ffmpeg_path()
+            
             try:
-                # Try simple FFmpegOpusAudio first
+                # Local executable use karke play karna
                 source = discord.FFmpegOpusAudio(url, executable=exe_path, **FFMPEG_OPTIONS)
                 ctx.voice_client.play(source)
             except Exception as e:
-                # Fallback to probe if direct fails
+                # Final attempt with from_probe
                 try:
                     source = await discord.FFmpegOpusAudio.from_probe(url, executable=exe_path, **FFMPEG_OPTIONS)
                     ctx.voice_client.play(source)
                 except Exception as final_e:
-                    return await ctx.send(f"{self.cross} **FFmpeg Error:** `{final_e}`\nCheck `nixpacks.toml` and Rebuild.")
+                    return await ctx.send(f"{self.cross} **FFmpeg Error:** `{final_e}`\nRailway setup check karein.")
 
         embed = discord.Embed(color=0x000000)
         embed.set_image(url=info.get('thumbnail'))
@@ -159,4 +159,3 @@ class Music(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(Music(bot))
-    

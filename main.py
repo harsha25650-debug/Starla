@@ -5,35 +5,54 @@ import json
 import logging
 import subprocess
 import shutil
+import urllib.request  # 👈 wget ki jagah ye use karenge
+import tarfile         # 👈 tar command ki jagah logic handle karne ke liye
+
 from discord.ext import commands, tasks
 from discord import Activity, ActivityType, Streaming
-
 from database import Database
 
 # --- LOGGING SETUP ---
 logging.basicConfig(level=logging.INFO)
 
-# --- ☢️ NUCLEAR FFMPEG INSTALLER FOR RAILWAY ---
+# --- ☢️ FINAL FFMPEG INSTALLER (No Wget Required) ---
 def install_ffmpeg():
     # Check agar ffmpeg pehle se folder mein hai ya system mein
-    if not os.path.exists("./ffmpeg") and not shutil.which("ffmpeg"):
-        print("📥 FFmpeg not found, downloading static binary for Railway...")
+    local_ffmpeg = "./ffmpeg"
+    if not os.path.exists(local_ffmpeg) and not shutil.which("ffmpeg"):
+        print("📥 FFmpeg not found, downloading static binary via urllib...")
         try:
-            # Static build download kar rahe hain jo har Linux environment mein chalta hai
             url = "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz"
-            subprocess.run(f"wget -q {url}", shell=True)
-            subprocess.run("tar -xf ffmpeg-release-amd64-static.tar.xz", shell=True)
+            archive_name = "ffmpeg.tar.xz"
             
-            # Binary ko main directory mein move karna
-            subprocess.run("mv ffmpeg-*-amd64-static/ffmpeg .", shell=True)
-            subprocess.run("mv ffmpeg-*-amd64-static/ffprobe .", shell=True)
+            # 1. Download using urllib
+            headers = {'User-Agent': 'Mozilla/5.0'}
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req) as response, open(archive_name, 'wb') as out_file:
+                shutil.copyfileobj(response, out_file)
             
-            # Permissions set karna
-            subprocess.run("chmod +x ffmpeg ffprobe", shell=True)
+            # 2. Extract using subprocess (Railway usually has tar)
+            subprocess.run(f"tar -xf {archive_name}", shell=True)
             
-            # Cleanup
-            subprocess.run("rm -rf ffmpeg-*-amd64-static* ffmpeg-release-amd64-static.tar.xz", shell=True)
-            print("✅ FFmpeg installed successfully in bot directory!")
+            # 3. Binary ko dhoond kar move karna
+            extracted_dir = None
+            for item in os.listdir('.'):
+                if os.path.isdir(item) and item.startswith("ffmpeg-"):
+                    extracted_dir = item
+                    break
+            
+            if extracted_dir:
+                shutil.move(f"{extracted_dir}/ffmpeg", "./ffmpeg")
+                shutil.move(f"{extracted_dir}/ffprobe", "./ffprobe")
+                subprocess.run("chmod +x ffmpeg ffprobe", shell=True)
+                
+                # Cleanup
+                shutil.rmtree(extracted_dir)
+                os.remove(archive_name)
+                print("✅ FFmpeg installed successfully in bot directory!")
+            else:
+                print("❌ Error: Extracted directory not found.")
+                
         except Exception as e:
             print(f"❌ Failed to install FFmpeg: {e}")
     else:
@@ -58,7 +77,7 @@ class NovaX(commands.Bot):
         self.db = None
 
     async def setup_hook(self):
-        # Pehle FFmpeg install karein start hone se pehle
+        # Start hote hi FFmpeg installer run karein
         install_ffmpeg()
         
         os.makedirs("./data", exist_ok=True)

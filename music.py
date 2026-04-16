@@ -56,10 +56,11 @@ class MusicView(discord.ui.View):
 class Music(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        # --- UPDATED EMOJIS ---
         self.loading = "<a:spider_red_dot:1494179666133516411>"
         self.music_record = "<a:4778musicrecordspin:1494220147618218046>"
-        self.blue_arrow = "<a:blue_arrow:1348026098004525096>"
-        self.green_arrow = "<:GreenArrow:1364257579550773362>"
+        self.blue_arrow = "<a:blue_arrow:1494220576313573536>" # Naya ID
+        self.green_arrow = "<:GreenArrow:1494220659029442570>" # Naya ID
         self.cross = "<a:spider_cross:1494181311525687347>"
 
     def get_ffmpeg_path(self):
@@ -84,32 +85,40 @@ class Music(commands.Cog):
         async with ctx.typing():
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 try:
+                    # 'download=False' thumbnail ke liye zaroori hai
                     info = ydl.extract_info(f"ytsearch:{search}", download=False)['entries'][0]
                     url = info.get('url')
                     web_url = info.get('webpage_url', f"https://www.youtube.com/watch?v={info.get('id')}")
+                    thumbnail = info.get('thumbnail') # Thumbnail fetch
                 except Exception as e:
                     return await msg.edit(content=f"{self.cross} Search error: `{e}`")
 
             exe_path = self.get_ffmpeg_path()
             
             try:
+                # Railway fixed streaming
                 source = await discord.FFmpegOpusAudio.from_probe(url, executable=exe_path, **FFMPEG_OPTIONS)
                 ctx.voice_client.play(source)
             except Exception as e:
                 return await msg.edit(content=f"{self.cross} **Audio Error:** `{e}`")
 
+        # --- EMBED WITH THUMBNAIL & NEW EMOJIS ---
         embed = discord.Embed(color=0x000000)
-        embed.set_image(url=info.get('thumbnail'))
+        if thumbnail:
+            embed.set_image(url=thumbnail) # Gane ki photo dikhegi
+        
         embed.description = (
             f"{self.music_record} **Now Playing...**\n\n"
             f"{self.blue_arrow} **[{info.get('title')}]({web_url})**\n"
-            f"{self.green_arrow} Requested by: {ctx.author.mention}"
+            f"{self.green_arrow} **Requested by:** {ctx.author.mention}"
         )
-        embed.set_footer(text=f"Duration: {str(datetime.timedelta(seconds=info.get('duration', 0)))}")
+        
+        duration = str(datetime.timedelta(seconds=info.get('duration', 0)))
+        embed.set_footer(text=f"Duration: {duration}")
         
         await msg.edit(content=None, embed=embed, view=MusicView(self.bot))
 
-    @commands.hybrid_command(name="nonstop", aliases=["247", "24/7"], description="24/7 Mode")
+    @commands.hybrid_command(name="nonstop", aliases=["247"], description="24/7 Mode")
     async def toggle_247(self, ctx):
         guild_id = str(ctx.guild.id)
         current = self.bot.db.get(f"247_{guild_id}", False)
@@ -117,13 +126,5 @@ class Music(commands.Cog):
         status = "Activated" if not current else "Deactivated"
         await ctx.send(f"✅ **24/7 Mode {status}!**")
 
-    @commands.Cog.listener()
-    async def on_voice_state_update(self, member, before, after):
-        if member.id == self.bot.user.id and after.channel is None:
-            if self.bot.db.get(f"247_{member.guild.id}", False):
-                try: await before.channel.connect()
-                except: pass
-
 async def setup(bot):
     await bot.add_cog(Music(bot))
-            

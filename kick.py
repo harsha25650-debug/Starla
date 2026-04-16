@@ -6,17 +6,23 @@ import datetime
 class Kick(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        # Custom Icons
+        self.caution = "<:spider_okjinwoo:1494216934613319691>"
+        self.loading = "<a:spider_red_dot:1494179666133516411>"
+        self.success = "<a:greentick:1494180392440303777>"
+        self.cross = "<a:spider_cross:1494181311525687347>"
 
-    # 🔐 IMPROVED PERMISSION CHECK
-    def has_perm_or_owner():
+    # 🔐 STANDARDIZED PERMISSION CHECK
+    def has_kick_perms():
         async def predicate(ctx):
-            # Check if User is Bot Owner (from bot config) or Server Owner
+            # Allow Bot Owner, Server Owner, or users with Administrator/Kick Members
             if ctx.author.id == ctx.bot.owner_id or ctx.author.id == ctx.guild.owner_id:
                 return True
-            # Check for Admin or Kick Members permission
-            return ctx.author.guild_permissions.administrator or ctx.author.guild_permissions.kick_members
+            perms = ctx.author.guild_permissions
+            return perms.kick_members or perms.administrator
         return commands.check(predicate)
 
+    # 📌 CASE ID SYSTEM
     def get_next_case(self, guild_id):
         path = f"cases.{guild_id}.case_count"
         case_id = self.bot.db.get(path, 0) + 1
@@ -35,28 +41,31 @@ class Kick(commands.Cog):
         self.bot.db.set(f"cases.{guild_id}.cases.{case_id}", case_data)
 
     # 👢 KICK COMMAND
-    @commands.hybrid_command(name="kick", description="Kick a member")
-    @app_commands.describe(member="Member to kick", reason="Reason")
-    @has_perm_or_owner() # Custom check
-    @commands.bot_has_permissions(kick_members=True) # Ensure bot has the actual permission
+    @commands.hybrid_command(name="kick", description="Kick a member from the server")
+    @app_commands.describe(member="Member to kick", reason="Reason for the kick")
+    @has_kick_perms()
+    @commands.bot_has_permissions(kick_members=True)
     async def kick(self, ctx, member: discord.Member, *, reason: str = "No reason provided"):
 
+        # 🚨 HIERARCHY & SAFETY CHECKS
         if member.id == ctx.author.id:
-            return await ctx.send("❌ You cannot kick yourself.")
+            return await ctx.send(f"{self.cross} You cannot kick yourself.")
 
-        # 🚨 ROLE HIERARCHY CHECK
-        # The bot cannot kick the Server Owner, or anyone with a role higher than the bot itself.
         if member.id == ctx.guild.owner_id:
-            return await ctx.send("❌ I cannot kick the Server Owner.")
-            
+            return await ctx.send(f"{self.cross} You cannot kick the Server Owner.")
+
         if member.top_role >= ctx.guild.me.top_role:
-            return await ctx.send("❌ I cannot kick this user. My role must be higher than theirs in the server settings.")
+            return await ctx.send(f"{self.cross} **Hierarchy Error:** My role must be higher than this user.")
 
         case_id = self.get_next_case(ctx.guild.id)
 
-        # 📩 DM
+        # 📩 DM (Using requested OkJinwoo emoji)
         try:
-            await member.send(f"👢 You were kicked from **{ctx.guild.name}**\nReason: {reason}\nCase: #{case_id}")
+            await member.send(
+                f"{self.caution} **You were kicked from {ctx.guild.name}**\n"
+                f"**Reason:** {reason}\n"
+                f"**Case:** #{case_id}"
+            )
         except:
             pass
 
@@ -64,10 +73,10 @@ class Kick(commands.Cog):
             await member.kick(reason=f"Case #{case_id} | {reason}")
             self.save_case(ctx.guild.id, case_id, "Kick", member, ctx.author, reason)
 
+            # 📢 RESPONSE (Black Embed)
             embed = discord.Embed(
-                title="👢 User Kicked",
-                description=f"{member.mention} has been kicked",
-                color=discord.Color.red()
+                description=f"{self.loading} **{member.mention} has been kicked**",
+                color=0x000000
             )
             embed.add_field(name="Reason", value=reason, inline=False)
             embed.add_field(name="Case ID", value=f"#{case_id}", inline=True)
@@ -76,21 +85,25 @@ class Kick(commands.Cog):
             await ctx.send(embed=embed)
 
         except discord.Forbidden:
-            await ctx.send("❌ I don't have enough permissions (Check my role position).")
+            await ctx.send(f"{self.cross} I don't have permission to kick this member.")
         except Exception as e:
-            await ctx.send(f"⚠️ Error: {e}")
+            await ctx.send(f"{self.cross} **Error:** `{e}`")
 
-    # ❗ IMPROVED ERROR HANDLER
+    # ❗ ERROR HANDLER
     @kick.error
     async def kick_error(self, ctx, error):
-        if isinstance(error, commands.MissingRequiredArgument):
-            await ctx.send(f"❌ Missing argument! Usage: `!kick <@user> [reason]`")
-        elif isinstance(error, commands.CheckFailure):
-            await ctx.send("❌ You don't have permission to use this command.")
+        if isinstance(error, commands.CheckFailure):
+            embed = discord.Embed(
+                description=f"{self.cross} **Access denied | owner/premiumUser only command**", 
+                color=0x000000
+            )
+            await ctx.send(embed=embed)
         elif isinstance(error, commands.BotMissingPermissions):
-            await ctx.send("❌ I don't have the `Kick Members` permission in my server settings.")
+            await ctx.send(f"{self.cross} I am missing the **Kick Members** permission.")
+        elif isinstance(error, commands.MissingRequiredArgument):
+            await ctx.send(f"{self.cross} **Usage:** `!kick <@user> [reason]`")
         else:
-            await ctx.send(f"⚠️ An unexpected error occurred: {error}")
+            await ctx.send(f"{self.cross} **Error:** `{error}`")
 
 async def setup(bot):
     await bot.add_cog(Kick(bot))

@@ -67,7 +67,10 @@ class Music(commands.Cog):
             return await ctx.send(f"{self.cross} You must be in a Voice Channel!")
 
         if not ctx.voice_client:
-            await ctx.author.voice.channel.connect()
+            try:
+                await ctx.author.voice.channel.connect()
+            except Exception as e:
+                return await ctx.send(f"{self.cross} Could not connect to VC: `{e}`")
 
         await ctx.send(f"{self.loading} Searching for `{search}`...")
 
@@ -79,8 +82,12 @@ class Music(commands.Cog):
                 except:
                     return await ctx.send(f"{self.cross} No results found.")
 
-            source = await discord.FFmpegOpusAudio.from_probe(url, **FFMPEG_OPTIONS)
-            ctx.voice_client.play(source)
+            # Discord Voice check before playing
+            try:
+                source = await discord.FFmpegOpusAudio.from_probe(url, **FFMPEG_OPTIONS)
+                ctx.voice_client.play(source)
+            except Exception as e:
+                return await ctx.send(f"{self.cross} Voice Error: `{e}`. Make sure FFmpeg and PyNaCl are installed.")
 
         embed = discord.Embed(color=0x000000)
         embed.set_image(url=info.get('thumbnail'))
@@ -95,10 +102,9 @@ class Music(commands.Cog):
         
         await ctx.send(embed=embed, view=MusicView(self.bot))
 
-    # FIXED: Name changed to 'nonstop' (slash friendly), but alias remains '247'
     @commands.hybrid_command(name="nonstop", aliases=["247", "24/7"], description="Keep bot in VC 24/7")
-    @commands.has_permissions(manage_guild=True)
     async def toggle_247(self, ctx):
+        # PERMISSIONS REMOVED: Any user can now use this
         guild_id = str(ctx.guild.id)
         current_status = self.bot.db.get(f"247_{guild_id}", False)
         
@@ -121,7 +127,11 @@ class Music(commands.Cog):
             guild_id = str(member.guild.id)
             if self.bot.db.get(f"247_{guild_id}", False):
                 if before.channel:
-                    await before.channel.connect()
+                    try:
+                        await before.channel.connect()
+                    except:
+                        pass
 
 async def setup(bot):
     await bot.add_cog(Music(bot))
+                    

@@ -7,13 +7,20 @@ import datetime
 import os
 import shutil
 
+# --- UPDATED CONFIG TO BYPASS BOT DETECTION ---
 ydl_opts = {
     'format': 'bestaudio/best',
     'quiet': True,
     'no_warnings': True,
     'nocheckcertificate': True,
     'default_search': 'ytsearch1',
-    'source_address': '0.0.0.0'
+    'source_address': '0.0.0.0',
+    # Bot detection bypass headers
+    'http_headers': {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+    }
 }
 
 FFMPEG_OPTIONS = {
@@ -92,14 +99,17 @@ class Music(commands.Cog):
         m = await ctx.send(f"{self.loading} Searching `{search}`...")
 
         try:
-            # Fixing the Hang: Run search in executor with timeout
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 loop = asyncio.get_event_loop()
+                # Use extractor directly to bypass some bot checks
                 data = await loop.run_in_executor(None, lambda: ydl.extract_info(f"ytsearch:{search}", download=False))
             
-            if not data or 'entries' not in data: return await m.edit(content="❌ No results.")
+            if not data or 'entries' not in data: return await m.edit(content="❌ No results found.")
             info = data['entries'][0]
-        except Exception as e: return await m.edit(content=f"❌ Error: {e}")
+        except Exception as e:
+            # Better error reporting
+            err_msg = str(e).split('.')[0] # Shorten the error
+            return await m.edit(content=f"{self.cross} YouTube Error: `{err_msg}`\nTry a different song or direct link.")
 
         if ctx.voice_client.is_playing():
             self.queue[ctx.guild.id].append(info)
@@ -107,18 +117,6 @@ class Music(commands.Cog):
 
         await m.delete()
         await self.start_playing(ctx, info)
-
-    @commands.hybrid_command(name="skip")
-    async def skip(self, ctx):
-        if ctx.voice_client: ctx.voice_client.stop(); await ctx.send("⏭️ Skipped!")
-
-    @commands.hybrid_command(name="volume")
-    async def vol(self, ctx, amount: int):
-        if 0 <= amount <= 100:
-            self.volume[ctx.guild.id] = amount/100
-            if ctx.voice_client and ctx.voice_client.source:
-                ctx.voice_client.source.volume = amount/100
-            await ctx.send(f"🔊 Volume: {amount}%")
 
 async def setup(bot):
     await bot.add_cog(Music(bot))

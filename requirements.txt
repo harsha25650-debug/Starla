@@ -2,5 +2,6 @@ discord.py
 python-dotenv
 flask
 aiosqlite
-pynacl
-
+pyNaCl
+yt-dlp
+asyncio

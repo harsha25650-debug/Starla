@@ -2,6 +2,6 @@ discord.py[voice]
 python-dotenv
 flask
 aiosqlite
-PyNaCl
+PyNaCl==1.5.0
 yt-dlp
 asyncio

@@ -63,13 +63,15 @@ class Music(commands.Cog):
         self.cross = "<a:spider_cross:1494181311525687347>"
 
     def get_ffmpeg_path(self):
-        """Find FFmpeg in local folder or system PATH"""
-        # Priority 1: Local folder (downloaded by main.py)
+        """Forcefully find and authorize FFmpeg path"""
         local_ffmpeg = os.path.join(os.getcwd(), "ffmpeg")
         if os.path.exists(local_ffmpeg):
+            try:
+                os.chmod(local_ffmpeg, 0o755) # Ensuring it's executable
+            except:
+                pass
             return local_ffmpeg
             
-        # Priority 2: System PATH
         path = shutil.which("ffmpeg")
         if path: return path
         
@@ -87,32 +89,32 @@ class Music(commands.Cog):
             except Exception as e:
                 return await ctx.send(f"{self.cross} Could not connect to VC: `{e}`")
 
-        await ctx.send(f"{self.loading} Searching for `{search}`...")
+        # Initial Search Message
+        msg = await ctx.send(f"{self.loading} Searching for `{search}`...")
 
         async with ctx.typing():
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 try:
                     info = ydl.extract_info(f"ytsearch:{search}", download=False)['entries'][0]
                     url = info['url']
-                except:
-                    return await ctx.send(f"{self.cross} No results found.")
+                except Exception:
+                    return await msg.edit(content=f"{self.cross} No results found for `{search}`.")
 
             exe_path = self.get_ffmpeg_path()
             
             try:
+                # Primary Play Attempt
                 source = discord.FFmpegOpusAudio(url, executable=exe_path, **FFMPEG_OPTIONS)
                 ctx.voice_client.play(source)
             except Exception as e:
                 try:
+                    # Fallback Attempt
                     source = await discord.FFmpegOpusAudio.from_probe(url, executable=exe_path, **FFMPEG_OPTIONS)
                     ctx.voice_client.play(source)
                 except Exception as final_e:
-                    # UPDATED ERROR MESSAGE IN ENGLISH
-                    return await ctx.send(
-                        f"{self.cross} **FFmpeg Error:** `{final_e}`\n"
-                        "Please check Railway build logs or redeploy the bot."
-                    )
+                    return await msg.edit(content=f"{self.cross} **Audio Engine Error:** `{final_e}`\nTry restarting the bot on Railway.")
 
+        # Success Embed
         embed = discord.Embed(color=0x000000)
         embed.set_image(url=info.get('thumbnail'))
         embed.description = (
@@ -124,7 +126,7 @@ class Music(commands.Cog):
         )
         embed.set_footer(text=f"Duration: {str(datetime.timedelta(seconds=info['duration']))}")
         
-        await ctx.send(embed=embed, view=MusicView(self.bot))
+        await msg.edit(content=None, embed=embed, view=MusicView(self.bot))
 
     @commands.hybrid_command(name="nonstop", aliases=["247", "24/7"], description="Keep bot in VC 24/7")
     async def toggle_247(self, ctx):

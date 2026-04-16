@@ -6,7 +6,9 @@ import logging
 import subprocess
 import shutil
 import urllib.request
-import tarfile         # 👈 Python internal extraction ke liye
+import tarfile
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import threading
 
 from discord.ext import commands, tasks
 from discord import Activity, ActivityType, Streaming
@@ -15,126 +17,86 @@ from database import Database
 # --- LOGGING SETUP ---
 logging.basicConfig(level=logging.INFO)
 
-# --- ☢️ UNIVERSAL FFMPEG INSTALLER (Gzip + Python Extract) ---
+# --- 🚀 HEALTH CHECK BYPASS (Railway "Stopping Container" Fix) ---
+def run_health_server():
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"Bot is Alive!")
+
+    server = HTTPServer(('0.0.0.0', int(os.environ.get("PORT", 8080))), Handler)
+    server.serve_forever()
+
+# --- ☢️ DIRECT FFMPEG INSTALLER ---
 def install_ffmpeg():
     local_ffmpeg = "./ffmpeg"
-    # Check agar local folder mein ffmpeg pehle se hai
     if not os.path.exists(local_ffmpeg):
-        print("📥 FFmpeg not found, downloading Gzip build for Railway...")
+        print("📥 FFmpeg not found, downloading direct build...")
         try:
-            # Gzip build link (xz error bypass karne ke liye)
-            url = "https://github.com/ffbinaries/ffbinaries-prebuilt/releases/download/v4.4.1/ffmpeg-4.4.1-linux-64.tar.gz"
-            archive_name = "ffmpeg.tar.gz"
+            # Direct link to a stable static build
+            url = "https://github.com/eugeneware/ffmpeg-static/releases/download/b4.4/linux-x64"
             
-            # 1. Download using urllib
             headers = {'User-Agent': 'Mozilla/5.0'}
             req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req) as response, open(archive_name, 'wb') as out_file:
+            with urllib.request.urlopen(req) as response, open("ffmpeg", 'wb') as out_file:
                 shutil.copyfileobj(response, out_file)
             
-            # 2. Extract using Python's tarfile (Bypass system tar/xz errors)
-            print("📦 Extracting FFmpeg...")
-            with tarfile.open(archive_name, "r:gz") as tar:
-                tar.extractall(path=".")
-            
-            # 3. Permissions set karna
-            if os.path.exists("./ffmpeg"):
-                os.chmod("./ffmpeg", 0o755)
-                print("✅ FFmpeg (Gzip) installed successfully!")
-            
-            # Cleanup
-            if os.path.exists(archive_name): 
-                os.remove(archive_name)
+            os.chmod("./ffmpeg", 0o755)
+            print("✅ FFmpeg (Direct Binary) installed successfully!")
                 
         except Exception as e:
             print(f"❌ Failed to install FFmpeg: {e}")
     else:
-        print("🔍 FFmpeg is already available in directory.")
+        print("🔍 FFmpeg is ready.")
 
 # --- PREFIX LOGIC ---
 def get_prefix(bot, message):
-    if not message.guild:
-        return "!"
+    if not message.guild: return "!"
     return bot.db.get(f"prefix.{message.guild.id}", "!")
 
 # --- BOT CLASS SETUP ---
 class NovaX(commands.Bot):
     def __init__(self):
         intents = discord.Intents.all()
-        super().__init__(
-            command_prefix=get_prefix,
-            intents=intents,
-            help_command=None,
-            case_insensitive=True
-        )
+        super().__init__(command_prefix=get_prefix, intents=intents, help_command=None)
         self.db = None
 
     async def setup_hook(self):
-        # Bot start hote hi installer chalao
+        # 1. Start Health Server in background
+        threading.Thread(target=run_health_server, daemon=True).start()
+        
+        # 2. Install FFmpeg
         install_ffmpeg()
         
         os.makedirs("./data", exist_ok=True)
         if not os.path.exists("./data/database.json"):
-            with open("./data/database.json", "w") as f:
-                json.dump({}, f)
+            with open("./data/database.json", "w") as f: json.dump({}, f)
         
         self.db = Database("data/database.json")
-        print("💾 Database connected.")
         await self.load_extensions()
 
     async def load_extensions(self):
         for filename in os.listdir('./'):
             if filename.endswith('.py') and filename not in ['main.py', 'database.py']:
-                try:
-                    await self.load_extension(f'{filename[:-3]}')
-                    print(f'✅ Loaded: {filename}')
-                except Exception as e:
-                    print(f'❌ Failed {filename}: {e}')
+                try: await self.load_extension(f'{filename[:-3]}')
+                except Exception as e: print(f'❌ Failed {filename}: {e}')
 
     async def on_ready(self):
-        print(f"---")
-        print(f"✅ NovaX v1.10 is Online")
-        print(f"🤖 User: {self.user}")
-        print(f"---")
-        
-        if not self.update_status.is_running():
-            self.update_status.start()
-
-        try:
-            synced = await self.tree.sync()
-            print(f"✨ Synced {len(synced)} Slash Commands")
-        except Exception as e:
-            print(f"⚠️ Sync Error: {e}")
+        print(f"✅ NovaX v1.10 Online | {self.user}")
+        if not self.update_status.is_running(): self.update_status.start()
+        await self.tree.sync()
 
     @tasks.loop(minutes=5)
     async def update_status(self):
-        server_count = len(self.guilds)
-        status_text = f"NovaX v1.10 | {server_count} Servers"
-        
-        await self.change_presence(
-            activity=discord.Streaming(
-                name=status_text,
-                url="https://www.twitch.tv/novax_bot" 
-            )
-        )
+        status_text = f"NovaX v1.10 | {len(self.guilds)} Servers"
+        await self.change_presence(activity=discord.Streaming(name=status_text, url="https://twitch.tv/novax_bot"))
 
 # --- RUNNING THE BOT ---
 async def run_bot():
     bot = NovaX()
-    
     token = os.getenv("TOKEN")
-    if not token:
-        print("❌ Error: TOKEN environment variable nahi mila!")
-        return
-
-    async with bot:
-        try:
-            await bot.start(token)
-        except KeyboardInterrupt:
-            print("🔴 Shutting down...")
+    async with bot: await bot.start(token)
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(run_bot())
-    except KeyboardInterrupt:
-        pass
+    asyncio.run(run_bot())

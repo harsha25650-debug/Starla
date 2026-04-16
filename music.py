@@ -10,7 +10,11 @@ import shutil
 # --- CONFIG ---
 ydl_opts = {
     'format': 'bestaudio/best',
-    'postprocessors': [{'key': 'FFmpegExtractAudio','preferredcodec': 'mp3','preferredquality': '192'}],
+    'postprocessors': [{
+        'key': 'FFmpegExtractAudio',
+        'preferredcodec': 'mp3',
+        'preferredquality': '192',
+    }],
     'quiet': True,
     'extract_flat': True,
     'source_address': '0.0.0.0',
@@ -56,6 +60,7 @@ class MusicView(discord.ui.View):
 class Music(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        # Custom Emojis
         self.loading = "<a:spider_red_dot:1494179666133516411>"
         self.music_record = "<a:4778musicrecordspin:1494220147618218046>"
         self.blue_arrow = "<a:blue_arrow:1348026098004525096>"
@@ -64,22 +69,29 @@ class Music(commands.Cog):
         self.cross = "<a:spider_cross:1494181311525687347>"
 
     def get_ffmpeg_path(self):
-        """Forcefully authorize and find FFmpeg binary"""
+        """Locates the FFmpeg binary and ensures permissions"""
         local_ffmpeg = os.path.join(os.getcwd(), "ffmpeg")
         if os.path.exists(local_ffmpeg):
-            try: os.chmod(local_ffmpeg, 0o755)
-            except: pass
+            try:
+                os.chmod(local_ffmpeg, 0o755)
+            except:
+                pass
             return local_ffmpeg
-        return shutil.which("ffmpeg") or "ffmpeg"
+        
+        path = shutil.which("ffmpeg")
+        return path if path else "ffmpeg"
 
-    @commands.hybrid_command(name="play", aliases=["p"], description="Play music")
-    @app_commands.describe(search="Song name or link")
+    @commands.hybrid_command(name="play", aliases=["p"], description="Play music from YouTube")
+    @app_commands.describe(search="Song name or YouTube link")
     async def play(self, ctx, *, search: str):
         if not ctx.author.voice:
             return await ctx.send(f"{self.cross} You must be in a Voice Channel!")
 
         if not ctx.voice_client:
-            await ctx.author.voice.channel.connect()
+            try:
+                await ctx.author.voice.channel.connect()
+            except Exception as e:
+                return await ctx.send(f"{self.cross} Could not connect to VC: `{e}`")
 
         msg = await ctx.send(f"{self.loading} Searching for `{search}`...")
 
@@ -87,8 +99,8 @@ class Music(commands.Cog):
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 try:
                     info = ydl.extract_info(f"ytsearch:{search}", download=False)['entries'][0]
-                    # URL aur Webpage safety fix
                     url = info.get('url')
+                    # Fix for webpage_url KeyError
                     web_url = info.get('webpage_url', f"https://www.youtube.com/watch?v={info.get('id')}")
                 except Exception as e:
                     return await msg.edit(content=f"{self.cross} Search error: `{e}`")
@@ -96,31 +108,39 @@ class Music(commands.Cog):
             exe_path = self.get_ffmpeg_path()
             
             try:
-                # Railway Code -11 Fix: Direct Probe to Opus
+                # Primary attempt: Directly from probe (best quality)
                 source = await discord.FFmpegOpusAudio.from_probe(url, executable=exe_path, **FFMPEG_OPTIONS)
                 ctx.voice_client.play(source)
             except Exception as e:
-                return await msg.edit(content=f"{self.cross} **Audio Engine Error:** `{e}`\nPlease try again in a few seconds.")
+                try:
+                    # Fallback attempt
+                    source = discord.FFmpegOpusAudio(url, executable=exe_path, **FFMPEG_OPTIONS)
+                    ctx.voice_client.play(source)
+                except Exception as final_e:
+                    return await msg.edit(content=f"{self.cross} **Audio Engine Error:** `{final_e}`\nPlease try again in 10 seconds.")
 
+        # Success Embed
         embed = discord.Embed(color=0x000000)
         embed.set_image(url=info.get('thumbnail'))
         embed.description = (
             f"{self.music_record} **Now Playing...**\n\n"
             f"{self.blue_arrow} **[{info.get('title')}]({web_url})**\n"
-            f"{self.green_arrow} Requested by: {ctx.author.mention}\n"
+            f"{self.green_arrow} **Uploader:** {info.get('uploader')}\n"
+            f"{self.green_arrow} **Requested by:** {ctx.author.mention}\n"
         )
-        embed.set_footer(text=f"Duration: {str(datetime.timedelta(seconds=info.get('duration', 0)))}")
+        duration = str(datetime.timedelta(seconds=info.get('duration', 0)))
+        embed.set_footer(text=f"Duration: {duration} | FFmpeg Mode: Static")
         
         await msg.edit(content=None, embed=embed, view=MusicView(self.bot))
 
-    @commands.hybrid_command(name="nonstop", aliases=["247", "24/7"], description="Keep bot in VC 24/7")
+    @commands.hybrid_command(name="nonstop", aliases=["247", "24/7"], description="Keep the bot in VC 24/7")
     async def toggle_247(self, ctx):
         guild_id = str(ctx.guild.id)
         current_status = self.bot.db.get(f"247_{guild_id}", False)
         
         if not current_status:
             if not ctx.author.voice:
-                return await ctx.send(f"{self.cross} You need to be in a VC to enable 24/7 mode!")
+                return await ctx.send(f"{self.cross} Join a VC first to enable 24/7 mode!")
             
             self.bot.db.set(f"247_{guild_id}", True)
             if not ctx.voice_client:
@@ -137,9 +157,10 @@ class Music(commands.Cog):
             guild_id = str(member.guild.id)
             if self.bot.db.get(f"247_{guild_id}", False):
                 if before.channel:
-                    try: await before.channel.connect()
-                    except: pass
+                    try:
+                        await before.channel.connect()
+                    except:
+                        pass
 
 async def setup(bot):
     await bot.add_cog(Music(bot))
-            

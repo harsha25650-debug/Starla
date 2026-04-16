@@ -6,7 +6,6 @@ import asyncio
 import datetime
 import os
 import shutil
-import subprocess
 
 # --- CONFIG ---
 ydl_opts = {
@@ -64,20 +63,16 @@ class Music(commands.Cog):
         self.cross = "<a:spider_cross:1494181311525687347>"
 
     def get_ffmpeg_path(self):
-        """Railway par local FFmpeg priority ke saath dhoondne ke liye logic"""
-        # 1. Check karein agar main.py ne local folder mein download kiya hai
-        local_path = "./ffmpeg"
-        if os.path.exists(local_path):
-            return local_path
+        """Find FFmpeg in local folder or system PATH"""
+        # Priority 1: Local folder (downloaded by main.py)
+        local_ffmpeg = os.path.join(os.getcwd(), "ffmpeg")
+        if os.path.exists(local_ffmpeg):
+            return local_ffmpeg
             
-        # 2. Check standard system path
+        # Priority 2: System PATH
         path = shutil.which("ffmpeg")
         if path: return path
         
-        # 3. Fallback common Linux paths
-        for loc in ["/usr/bin/ffmpeg", "/usr/local/bin/ffmpeg", "/nix/var/nix/profiles/default/bin/ffmpeg"]:
-            if os.path.exists(loc): return loc
-            
         return "ffmpeg"
 
     @commands.hybrid_command(name="play", aliases=["p"], description="Play music")
@@ -102,20 +97,21 @@ class Music(commands.Cog):
                 except:
                     return await ctx.send(f"{self.cross} No results found.")
 
-            # --- DYNAMIC FFmpeg DETECTION ---
             exe_path = self.get_ffmpeg_path()
             
             try:
-                # Local executable use karke play karna
                 source = discord.FFmpegOpusAudio(url, executable=exe_path, **FFMPEG_OPTIONS)
                 ctx.voice_client.play(source)
             except Exception as e:
-                # Final attempt with from_probe
                 try:
                     source = await discord.FFmpegOpusAudio.from_probe(url, executable=exe_path, **FFMPEG_OPTIONS)
                     ctx.voice_client.play(source)
                 except Exception as final_e:
-                    return await ctx.send(f"{self.cross} **FFmpeg Error:** `{final_e}`\nRailway setup check karein.")
+                    # UPDATED ERROR MESSAGE IN ENGLISH
+                    return await ctx.send(
+                        f"{self.cross} **FFmpeg Error:** `{final_e}`\n"
+                        "Please check Railway build logs or redeploy the bot."
+                    )
 
         embed = discord.Embed(color=0x000000)
         embed.set_image(url=info.get('thumbnail'))

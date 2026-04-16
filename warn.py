@@ -93,7 +93,7 @@ class Warn(commands.Cog):
                     kick_case = self.get_next_case(guild_id)
                     self.save_case(guild_id, kick_case, "Auto Kick", member, "System", "Reached 3 warnings")
                     self.bot.db.set(f"warns.{guild_id}.{user_id}", 0)
-                    await ctx.send(f"👢 **{member.mention} has been auto-kicked (3/3 warnings).**")
+                    await ctx.send(f" **{member.mention} has been auto-kicked (3/3 warnings).**")
                 else:
                     await ctx.send(f"{self.cross_icon} Cannot auto-kick {member.mention} due to role hierarchy.")
             except:

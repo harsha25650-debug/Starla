@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+from discord import app_commands
 import yt_dlp
 import asyncio
 import datetime
@@ -59,8 +60,8 @@ class Music(commands.Cog):
         self.success = "<a:greentick:1494180392440303777>"
         self.cross = "<a:spider_cross:1494181311525687347>"
 
-    # 🎵 PLAY COMMAND (!play or !p)
     @commands.hybrid_command(name="play", aliases=["p"], description="Play music")
+    @app_commands.describe(search="Song name or link")
     async def play(self, ctx, *, search: str):
         if not ctx.author.voice:
             return await ctx.send(f"{self.cross} You must be in a Voice Channel!")
@@ -94,8 +95,8 @@ class Music(commands.Cog):
         
         await ctx.send(embed=embed, view=MusicView(self.bot))
 
-    # ♾️ 24/7 COMMAND
-    @commands.hybrid_command(name="24/7", aliases=["247"], description="Keep bot in VC 24/7")
+    # FIXED: Name changed to 'nonstop' (slash friendly), but alias remains '247'
+    @commands.hybrid_command(name="nonstop", aliases=["247", "24/7"], description="Keep bot in VC 24/7")
     @commands.has_permissions(manage_guild=True)
     async def toggle_247(self, ctx):
         guild_id = str(ctx.guild.id)
@@ -109,18 +110,16 @@ class Music(commands.Cog):
             if not ctx.voice_client:
                 await ctx.author.voice.channel.connect()
             
-            await ctx.send(f"{self.success} **24/7 Mode Activated!** Bot will not leave this channel.")
+            await ctx.send(f"{self.success} **24/7 Mode Activated!**")
         else:
             self.bot.db.set(f"247_{guild_id}", False)
             await ctx.send(f"{self.cross} **24/7 Mode Deactivated!**")
 
-    # Voice State Listener (To prevent disconnection)
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
         if member.id == self.bot.user.id and after.channel is None:
             guild_id = str(member.guild.id)
             if self.bot.db.get(f"247_{guild_id}", False):
-                # Reconnect if 24/7 is on
                 if before.channel:
                     await before.channel.connect()
 

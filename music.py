@@ -4,6 +4,8 @@ from discord import app_commands
 import yt_dlp
 import asyncio
 import datetime
+import os
+import shutil
 
 # --- CONFIG ---
 ydl_opts = {
@@ -60,6 +62,18 @@ class Music(commands.Cog):
         self.success = "<a:greentick:1494180392440303777>"
         self.cross = "<a:spider_cross:1494181311525687347>"
 
+    def find_ffmpeg(self):
+        """Railway/Nixpacks par FFmpeg path dhoondne ke liye function"""
+        # 1. System path check karein
+        path = shutil.which("ffmpeg")
+        if path: return path
+        
+        # 2. Common Linux locations check karein
+        locations = ["/usr/bin/ffmpeg", "/usr/local/bin/ffmpeg", "/nix/var/nix/profiles/default/bin/ffmpeg"]
+        for loc in locations:
+            if os.path.exists(loc): return loc
+        return "ffmpeg" # Fallback
+
     @commands.hybrid_command(name="play", aliases=["p"], description="Play music")
     @app_commands.describe(search="Song name or link")
     async def play(self, ctx, *, search: str):
@@ -82,12 +96,12 @@ class Music(commands.Cog):
                 except:
                     return await ctx.send(f"{self.cross} No results found.")
 
-            # Discord Voice check before playing
             try:
-                source = await discord.FFmpegOpusAudio.from_probe(url, **FFMPEG_OPTIONS)
+                ffmpeg_exe = self.find_ffmpeg()
+                source = await discord.FFmpegOpusAudio.from_probe(url, executable=ffmpeg_exe, **FFMPEG_OPTIONS)
                 ctx.voice_client.play(source)
             except Exception as e:
-                return await ctx.send(f"{self.cross} Voice Error: `{e}`. Make sure FFmpeg and PyNaCl are installed.")
+                return await ctx.send(f"{self.cross} **Voice Error:** `{e}`\nCheck Railway logs and nixpacks.toml!")
 
         embed = discord.Embed(color=0x000000)
         embed.set_image(url=info.get('thumbnail'))
@@ -104,7 +118,6 @@ class Music(commands.Cog):
 
     @commands.hybrid_command(name="nonstop", aliases=["247", "24/7"], description="Keep bot in VC 24/7")
     async def toggle_247(self, ctx):
-        # PERMISSIONS REMOVED: Any user can now use this
         guild_id = str(ctx.guild.id)
         current_status = self.bot.db.get(f"247_{guild_id}", False)
         
@@ -127,11 +140,8 @@ class Music(commands.Cog):
             guild_id = str(member.guild.id)
             if self.bot.db.get(f"247_{guild_id}", False):
                 if before.channel:
-                    try:
-                        await before.channel.connect()
-                    except:
-                        pass
+                    try: await before.channel.connect()
+                    except: pass
 
 async def setup(bot):
     await bot.add_cog(Music(bot))
-                    

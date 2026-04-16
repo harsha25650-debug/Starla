@@ -5,8 +5,8 @@ import json
 import logging
 import subprocess
 import shutil
-import urllib.request  # 👈 wget ki jagah ye use karenge
-import tarfile         # 👈 tar command ki jagah logic handle karne ke liye
+import urllib.request
+import tarfile         # 👈 Python internal extraction ke liye
 
 from discord.ext import commands, tasks
 from discord import Activity, ActivityType, Streaming
@@ -15,15 +15,16 @@ from database import Database
 # --- LOGGING SETUP ---
 logging.basicConfig(level=logging.INFO)
 
-# --- ☢️ FINAL FFMPEG INSTALLER (No Wget Required) ---
+# --- ☢️ UNIVERSAL FFMPEG INSTALLER (Gzip + Python Extract) ---
 def install_ffmpeg():
-    # Check agar ffmpeg pehle se folder mein hai ya system mein
     local_ffmpeg = "./ffmpeg"
-    if not os.path.exists(local_ffmpeg) and not shutil.which("ffmpeg"):
-        print("📥 FFmpeg not found, downloading static binary via urllib...")
+    # Check agar local folder mein ffmpeg pehle se hai
+    if not os.path.exists(local_ffmpeg):
+        print("📥 FFmpeg not found, downloading Gzip build for Railway...")
         try:
-            url = "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz"
-            archive_name = "ffmpeg.tar.xz"
+            # Gzip build link (xz error bypass karne ke liye)
+            url = "https://github.com/ffbinaries/ffbinaries-prebuilt/releases/download/v4.4.1/ffmpeg-4.4.1-linux-64.tar.gz"
+            archive_name = "ffmpeg.tar.gz"
             
             # 1. Download using urllib
             headers = {'User-Agent': 'Mozilla/5.0'}
@@ -31,32 +32,24 @@ def install_ffmpeg():
             with urllib.request.urlopen(req) as response, open(archive_name, 'wb') as out_file:
                 shutil.copyfileobj(response, out_file)
             
-            # 2. Extract using subprocess (Railway usually has tar)
-            subprocess.run(f"tar -xf {archive_name}", shell=True)
+            # 2. Extract using Python's tarfile (Bypass system tar/xz errors)
+            print("📦 Extracting FFmpeg...")
+            with tarfile.open(archive_name, "r:gz") as tar:
+                tar.extractall(path=".")
             
-            # 3. Binary ko dhoond kar move karna
-            extracted_dir = None
-            for item in os.listdir('.'):
-                if os.path.isdir(item) and item.startswith("ffmpeg-"):
-                    extracted_dir = item
-                    break
+            # 3. Permissions set karna
+            if os.path.exists("./ffmpeg"):
+                os.chmod("./ffmpeg", 0o755)
+                print("✅ FFmpeg (Gzip) installed successfully!")
             
-            if extracted_dir:
-                shutil.move(f"{extracted_dir}/ffmpeg", "./ffmpeg")
-                shutil.move(f"{extracted_dir}/ffprobe", "./ffprobe")
-                subprocess.run("chmod +x ffmpeg ffprobe", shell=True)
-                
-                # Cleanup
-                shutil.rmtree(extracted_dir)
+            # Cleanup
+            if os.path.exists(archive_name): 
                 os.remove(archive_name)
-                print("✅ FFmpeg installed successfully in bot directory!")
-            else:
-                print("❌ Error: Extracted directory not found.")
                 
         except Exception as e:
             print(f"❌ Failed to install FFmpeg: {e}")
     else:
-        print("🔍 FFmpeg is already available.")
+        print("🔍 FFmpeg is already available in directory.")
 
 # --- PREFIX LOGIC ---
 def get_prefix(bot, message):
@@ -77,7 +70,7 @@ class NovaX(commands.Bot):
         self.db = None
 
     async def setup_hook(self):
-        # Start hote hi FFmpeg installer run karein
+        # Bot start hote hi installer chalao
         install_ffmpeg()
         
         os.makedirs("./data", exist_ok=True)

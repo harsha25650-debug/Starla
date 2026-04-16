@@ -7,15 +7,13 @@ import datetime
 import os
 import shutil
 
-# --- CONFIG ---
 ydl_opts = {
     'format': 'bestaudio/best',
-    'postprocessors': [{'key': 'FFmpegExtractAudio','preferredcodec': 'mp3','preferredquality': '192'}],
     'quiet': True,
-    'extract_flat': True,
-    'source_address': '0.0.0.0',
+    'no_warnings': True,
     'nocheckcertificate': True,
-    'default_search': 'ytsearch',
+    'default_search': 'ytsearch1',
+    'source_address': '0.0.0.0'
 }
 
 FFMPEG_OPTIONS = {
@@ -29,37 +27,23 @@ class MusicView(discord.ui.View):
         self.bot = bot
 
     @discord.ui.button(label="II", style=discord.ButtonStyle.secondary)
-    async def pause_resume(self, interaction: discord.Interaction, button):
-        vc = interaction.guild.voice_client
+    async def pause_resume(self, i: discord.Interaction, b):
+        vc = i.guild.voice_client
         if not vc: return
-        if vc.is_paused():
-            vc.resume()
-            button.label = "II"
-        else:
-            vc.pause()
-            button.label = "▶"
-        await interaction.response.edit_message(view=self)
+        if vc.is_paused(): vc.resume(); b.label = "II"
+        else: vc.pause(); b.label = "▶"
+        await i.response.edit_message(view=self)
 
     @discord.ui.button(label="▶I", style=discord.ButtonStyle.secondary)
-    async def skip_btn(self, interaction: discord.Interaction, button):
-        vc = interaction.guild.voice_client
-        if vc and (vc.is_playing() or vc.is_paused()):
-            vc.stop()
-            await interaction.response.send_message("⏭️ **Skipped!**", ephemeral=True)
-
-    @discord.ui.button(label="■", style=discord.ButtonStyle.secondary)
-    async def stop_btn(self, interaction: discord.Interaction, button):
-        vc = interaction.guild.voice_client
-        if vc:
-            await vc.disconnect()
-            await interaction.response.send_message("⏹️ **Stopped!**", ephemeral=True)
+    async def skip(self, i: discord.Interaction, b):
+        if i.guild.voice_client: i.guild.voice_client.stop()
+        await i.response.send_message("⏭️ Skipped!", ephemeral=True)
 
 class Music(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.queue = {}
-        self.volume = {} # Default 1.0 (100%)
-        
+        self.volume = {}
         # Emojis
         self.loading = "<a:spider_red_dot:1494179666133516411>"
         self.music_record = "<a:4778musicrecordspin:1494220147618218046>"
@@ -67,108 +51,74 @@ class Music(commands.Cog):
         self.green_arrow = "<:GreenArrow:1494220659029442570>"
         self.cross = "<a:spider_cross:1494181311525687347>"
 
-    def get_ffmpeg_path(self):
-        local_ffmpeg = os.path.join(os.getcwd(), "ffmpeg")
-        if os.path.exists(local_ffmpeg):
-            try: os.chmod(local_ffmpeg, 0o755)
-            except: pass
-            return local_ffmpeg
-        return shutil.which("ffmpeg") or "ffmpeg"
+    def get_ffmpeg(self):
+        p = os.path.join(os.getcwd(), "ffmpeg")
+        if os.path.exists(p): os.chmod(p, 0o755); return p
+        return "ffmpeg"
 
-    def check_queue(self, ctx):
-        if ctx.guild.id in self.queue and self.queue[ctx.guild.id]:
-            next_song = self.queue[ctx.guild.id].pop(0)
-            asyncio.run_coroutine_threadsafe(self.play_music(ctx, next_song, is_next=True), self.bot.loop)
+    async def play_next(self, ctx):
+        if self.queue.get(ctx.guild.id):
+            info = self.queue[ctx.guild.id].pop(0)
+            await self.start_playing(ctx, info)
 
-    async def play_music(self, ctx, info, is_next=False):
-        url = info.get('url')
-        exe_path = self.get_ffmpeg_path()
-        
-        # Audio fix: Using PCMVolumeTransformer for better audio delivery
-        source = await discord.FFmpegOpusAudio.from_probe(url, executable=exe_path, **FFMPEG_OPTIONS)
+    async def start_playing(self, ctx, info):
+        url = info['url']
+        source = await discord.FFmpegOpusAudio.from_probe(url, executable=self.get_ffmpeg(), **FFMPEG_OPTIONS)
         vol = self.volume.get(ctx.guild.id, 1.0)
-        transformed_source = discord.PCMVolumeTransformer(source, volume=vol)
-
-        ctx.voice_client.play(transformed_source, after=lambda e: self.check_queue(ctx))
-
-        if is_next:
-            embed = self.create_embed(info, ctx.author)
-            await ctx.send(embed=embed, view=MusicView(self.bot))
-
-    def create_embed(self, info, author):
-        web_url = info.get('webpage_url', f"https://www.youtube.com/watch?v={info.get('id')}")
-        embed = discord.Embed(color=0x000000)
-        if info.get('thumbnail'):
-            embed.set_image(url=info.get('thumbnail'))
+        source = discord.PCMVolumeTransformer(source, volume=vol)
+        ctx.voice_client.play(source, after=lambda e: self.bot.loop.create_task(self.play_next(ctx)))
         
+        embed = self.make_embed(info, ctx.author)
+        await ctx.send(embed=embed, view=MusicView(self.bot))
+
+    def make_embed(self, info, author):
+        embed = discord.Embed(color=0x000000)
+        if info.get('thumbnail'): embed.set_image(url=info['thumbnail'])
         embed.description = (
-            f"{self.music_record} **Now Playing...**\n\n"
-            f"{self.blue_arrow} **[{info.get('title')}]({web_url})**\n"
+            f"{self.music_record} **Now Playing**\n\n"
+            f"{self.blue_arrow} **[{info['title']}]({info.get('webpage_url')})**\n"
             f"{self.green_arrow} **Requested by:** {author.mention}"
         )
-        duration = str(datetime.timedelta(seconds=info.get('duration', 0)))
-        vol_percent = int(self.volume.get(author.guild.id, 1.0) * 100)
-        embed.set_footer(text=f"Duration: {duration} | Volume: {vol_percent}%")
         return embed
 
-    @commands.hybrid_command(name="play", aliases=["p"], description="Play music")
+    @commands.hybrid_command(name="play", aliases=["p"])
     async def play(self, ctx, *, search: str):
-        if not ctx.author.voice:
-            return await ctx.send(f"{self.cross} Join a Voice Channel!")
-
-        if not ctx.voice_client:
-            await ctx.author.voice.channel.connect()
-
-        # Init Queue and Vol for guild
+        if not ctx.author.voice: return await ctx.send(f"{self.cross} Join a VC!")
+        if not ctx.voice_client: await ctx.author.voice.channel.connect()
+        
         if ctx.guild.id not in self.queue: self.queue[ctx.guild.id] = []
         if ctx.guild.id not in self.volume: self.volume[ctx.guild.id] = 1.0
 
-        msg = await ctx.send(f"{self.loading} Searching for `{search}`...")
+        m = await ctx.send(f"{self.loading} Searching `{search}`...")
 
-        async with ctx.typing():
+        try:
+            # Fixing the Hang: Run search in executor with timeout
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                try:
-                    info = ydl.extract_info(f"ytsearch:{search}", download=False)['entries'][0]
-                except Exception as e:
-                    return await msg.edit(content=f"{self.cross} Error: `{e}`")
+                loop = asyncio.get_event_loop()
+                data = await loop.run_in_executor(None, lambda: ydl.extract_info(f"ytsearch:{search}", download=False))
+            
+            if not data or 'entries' not in data: return await m.edit(content="❌ No results.")
+            info = data['entries'][0]
+        except Exception as e: return await m.edit(content=f"❌ Error: {e}")
 
-            if ctx.voice_client.is_playing() or ctx.voice_client.is_paused():
-                self.queue[ctx.guild.id].append(info)
-                return await msg.edit(content=f"📝 **Added to Queue:** `{info['title']}`")
+        if ctx.voice_client.is_playing():
+            self.queue[ctx.guild.id].append(info)
+            return await m.edit(content=f"📝 Added to Queue: `{info['title']}`")
 
-            await self.play_music(ctx, info)
+        await m.delete()
+        await self.start_playing(ctx, info)
 
-        embed = self.create_embed(info, ctx.author)
-        await msg.edit(content=None, embed=embed, view=MusicView(self.bot))
-
-    @commands.hybrid_command(name="skip", aliases=["s"], description="Skip current song")
+    @commands.hybrid_command(name="skip")
     async def skip(self, ctx):
-        if ctx.voice_client and (ctx.voice_client.is_playing() or ctx.voice_client.is_paused()):
-            ctx.voice_client.stop()
-            await ctx.send("⏭️ **Song Skipped!**")
-        else:
-            await ctx.send(f"{self.cross} Nothing is playing.")
+        if ctx.voice_client: ctx.voice_client.stop(); await ctx.send("⏭️ Skipped!")
 
-    @commands.hybrid_command(name="volume", aliases=["vol"], description="Change volume 0-100")
-    async def set_volume(self, ctx, amount: int):
-        if not ctx.voice_client: return await ctx.send(f"{self.cross} I'm not in VC.")
-        
+    @commands.hybrid_command(name="volume")
+    async def vol(self, ctx, amount: int):
         if 0 <= amount <= 100:
-            vol_dec = amount / 100
-            self.volume[ctx.guild.id] = vol_dec
-            if ctx.voice_client.source:
-                ctx.voice_client.source.volume = vol_dec
-            await ctx.send(f"🔊 **Volume set to {amount}%**")
-        else:
-            await ctx.send("Enter volume between 0-100.")
-
-    @commands.hybrid_command(name="nonstop", aliases=["247"], description="24/7 Mode")
-    async def toggle_247(self, ctx):
-        guild_id = str(ctx.guild.id)
-        current = self.bot.db.get(f"247_{guild_id}", False)
-        self.bot.db.set(f"247_{guild_id}", not current)
-        status = "Activated" if not current else "Deactivated"
-        await ctx.send(f"✅ **24/7 Mode {status}!**")
+            self.volume[ctx.guild.id] = amount/100
+            if ctx.voice_client and ctx.voice_client.source:
+                ctx.voice_client.source.volume = amount/100
+            await ctx.send(f"🔊 Volume: {amount}%")
 
 async def setup(bot):
     await bot.add_cog(Music(bot))

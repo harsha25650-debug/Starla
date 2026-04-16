@@ -25,20 +25,23 @@ def run_health_server():
             self.end_headers()
             self.wfile.write(b"Bot is Alive!")
         def log_message(self, format, *args):
-            return # Quiet logs
+            return # Silent logs to keep it clean
 
-    port = int(os.environ.get("PORT", 8080))
-    server = HTTPServer(('0.0.0.0', port), Handler)
-    print(f"🌍 Health server running on port {port}")
-    server.serve_forever()
+    try:
+        port = int(os.environ.get("PORT", 8080))
+        server = HTTPServer(('0.0.0.0', port), Handler)
+        print(f"🌍 Health server running on port {port}")
+        server.serve_forever()
+    except Exception as e:
+        print(f"⚠️ Health server error: {e}")
 
-# --- ☢️ STABLE FFMPEG INSTALLER (Fix for Code -11) ---
+# --- ☢️ STABLE FFMPEG INSTALLER (Fix for Code -11 & Path Errors) ---
 def install_ffmpeg():
     local_ffmpeg = "./ffmpeg"
     if not os.path.exists(local_ffmpeg):
-        print("📥 FFmpeg not found, downloading stable build...")
+        print("📥 FFmpeg not found, downloading stable master build...")
         try:
-            # Code -11 fix ke liye ye build sabse stable hai Railway par
+            # Code -11 fix ke liye ye build sabse stable hai Linux containers ke liye
             url = "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz"
             archive_name = "ffmpeg.tar.xz"
             
@@ -47,23 +50,24 @@ def install_ffmpeg():
             with urllib.request.urlopen(req) as response, open(archive_name, 'wb') as out_file:
                 shutil.copyfileobj(response, out_file)
             
-            # Extract using system tar
+            # Extract using system tar (Railway containers usually have this)
             subprocess.run(f"tar -xf {archive_name}", shell=True)
             
             # Binary dhoond kar main folder mein move karna
+            found = False
             for root, dirs, files in os.walk("."):
                 if "ffmpeg" in files and "bin" in root:
                     ffmpeg_src = os.path.join(root, "ffmpeg")
                     shutil.move(ffmpeg_src, "./ffmpeg")
+                    found = True
                     break
             
-            if os.path.exists("./ffmpeg"):
+            if found:
                 os.chmod("./ffmpeg", 0o755)
                 print("✅ Stable FFmpeg installed successfully!")
             
             # Cleanup
             if os.path.exists(archive_name): os.remove(archive_name)
-            # Purane extracted folders remove karna
             for item in os.listdir("."):
                 if os.path.isdir(item) and "ffmpeg-master" in item:
                     shutil.rmtree(item)
@@ -71,7 +75,7 @@ def install_ffmpeg():
         except Exception as e:
             print(f"❌ Failed to install FFmpeg: {e}")
     else:
-        print("🔍 FFmpeg is ready.")
+        print("🔍 FFmpeg is already available in directory.")
 
 # --- PREFIX LOGIC ---
 def get_prefix(bot, message):
@@ -82,47 +86,73 @@ def get_prefix(bot, message):
 class NovaX(commands.Bot):
     def __init__(self):
         intents = discord.Intents.all()
-        super().__init__(command_prefix=get_prefix, intents=intents, help_command=None)
+        super().__init__(
+            command_prefix=get_prefix, 
+            intents=intents, 
+            help_command=None,
+            case_insensitive=True
+        )
         self.db = None
 
     async def setup_hook(self):
-        # 1. Start Health Server
+        # 1. Start Health Server in background thread
         threading.Thread(target=run_health_server, daemon=True).start()
         
-        # 2. Install FFmpeg
+        # 2. Install FFmpeg before loading music cog
         install_ffmpeg()
         
+        # 3. Database & Extensions
         os.makedirs("./data", exist_ok=True)
         if not os.path.exists("./data/database.json"):
             with open("./data/database.json", "w") as f: json.dump({}, f)
         
         self.db = Database("data/database.json")
+        print("💾 Database connected.")
         await self.load_extensions()
 
     async def load_extensions(self):
         for filename in os.listdir('./'):
             if filename.endswith('.py') and filename not in ['main.py', 'database.py']:
-                try: await self.load_extension(filename[:-3])
-                except Exception as e: print(f'❌ Failed {filename}: {e}')
+                try: 
+                    await self.load_extension(filename[:-3])
+                    print(f"✅ Loaded Extension: {filename}")
+                except Exception as e: 
+                    print(f'❌ Failed to load {filename}: {e}')
 
     async def on_ready(self):
         print(f"---")
-        print(f"✅ NovaX v1.10 Online | {self.user}")
+        print(f"✅ NovaX v1.10 Online | Logged in as: {self.user}")
         print(f"---")
-        if not self.update_status.is_running(): self.update_status.start()
+        if not self.update_status.is_running(): 
+            self.update_status.start()
         await self.tree.sync()
 
     @tasks.loop(minutes=5)
     async def update_status(self):
         status_text = f"NovaX v1.10 | {len(self.guilds)} Servers"
-        await self.change_presence(activity=discord.Streaming(name=status_text, url="https://twitch.tv/novax_bot"))
+        await self.change_presence(
+            activity=discord.Streaming(
+                name=status_text, 
+                url="https://twitch.tv/novax_bot"
+            )
+        )
 
 # --- RUNNING THE BOT ---
 async def run_bot():
     bot = NovaX()
     token = os.getenv("TOKEN")
-    async with bot: await bot.start(token)
+    if not token:
+        print("❌ CRITICAL: No TOKEN found in environment variables!")
+        return
+
+    async with bot:
+        try:
+            await bot.start(token)
+        except KeyboardInterrupt:
+            print("🔴 Shutting down...")
 
 if __name__ == "__main__":
-    asyncio.run(run_bot())
-    
+    try:
+        asyncio.run(run_bot())
+    except KeyboardInterrupt:
+        pass

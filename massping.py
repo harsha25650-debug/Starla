@@ -8,118 +8,100 @@ class MassPing(commands.Cog):
         self.bot = bot
         self.active = {}
 
-    # 📥 GET ACCESS LIST (DM support added)
-    def get_access(self, guild_id):
-        # DMs ke liye alag key use karenge taaki data mix na ho
-        key = f"mpaccess.{guild_id}" if guild_id else "mpaccess.global"
-        return self.bot.db.get(key, [])
+    # 📥 GET GLOBAL ACCESS LIST
+    def get_global_access(self):
+        return self.bot.db.get("mpaccess.global", [])
 
-    # 💾 ADD ACCESS
-    def add_access(self, guild_id, user_id):
-        key = f"mpaccess.{guild_id}" if guild_id else "mpaccess.global"
-        users = self.get_access(guild_id)
+    # 💾 ADD GLOBAL ACCESS
+    def add_global_access(self, user_id):
+        users = self.get_global_access()
         if user_id not in users:
             users.append(user_id)
-            self.bot.db.set(key, users)
+            self.bot.db.set("mpaccess.global", users)
 
-    # ❌ REMOVE ACCESS
-    def remove_access(self, guild_id, user_id):
-        key = f"mpaccess.{guild_id}" if guild_id else "mpaccess.global"
-        users = self.get_access(guild_id)
+    # ❌ REMOVE GLOBAL ACCESS
+    def remove_global_access(self, user_id):
+        users = self.get_global_access()
         if user_id in users:
             users.remove(user_id)
-            self.bot.db.set(key, users)
+            self.bot.db.set("mpaccess.global", users)
 
     # 🔐 PERMISSION CHECK
     async def check_permissions(self, interaction_or_ctx):
         user = interaction_or_ctx.user if isinstance(interaction_or_ctx, discord.Interaction) else interaction_or_ctx.author
-        guild = interaction_or_ctx.guild
-
         if await self.bot.is_owner(user):
             return True
-        
-        # Server context
-        if guild:
-            if user.id == guild.owner_id:
-                return True
-            if user.id in self.get_access(guild.id):
-                return True
-        
-        # DM/Global context
-        if user.id in self.get_access(None):
-            return True
-
-        return False
+        return user.id in self.get_global_access()
 
     # =========================
-    # 🔑 ACCESS COMMANDS (Naya Section)
+    # 🔑 ACCESS MANAGEMENT
     # =========================
     
-    @commands.hybrid_command(name="mpaccess", description="Give massping access to a user")
-    @app_commands.describe(member="User to give access")
+    @commands.hybrid_command(name="mpaccess", description="Grant global massping access to a user")
+    @app_commands.describe(member="User to authorize globally")
     @app_commands.allowed_installs(guilds=True, users=True)
     @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     async def mpaccess(self, ctx, member: discord.User):
-        # Sirf aap (Owner) hi access de sakte hain
         if not await self.bot.is_owner(ctx.author):
-            return await ctx.reply("❌ Sirf Bot Owner hi access de sakta hai!")
+            return await ctx.reply("<a:spider_cross:1494181311525687347> Only the bot owner can manage global access.")
 
-        guild_id = ctx.guild.id if ctx.guild else None
-        self.add_access(guild_id, member.id)
-        
-        target = "Server" if ctx.guild else "Global/DMs"
-        await ctx.reply(f"✅ {member.mention} ko **{target}** mein access mil gaya hai.")
+        self.add_global_access(member.id)
+        await ctx.reply(f"<a:greentick:1494180392440303777> **{member.name}** has been granted **Global Access**.")
 
-    @commands.hybrid_command(name="mpremove", description="Remove massping access")
+    @commands.hybrid_command(name="mpremove", description="Revoke global massping access")
     @app_commands.allowed_installs(guilds=True, users=True)
     @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     async def mpremove(self, ctx, member: discord.User):
         if not await self.bot.is_owner(ctx.author):
-            return await ctx.reply("❌ Access denied.")
+            return await ctx.reply("<a:spider_cross:1494181311525687347> Access denied.")
 
-        guild_id = ctx.guild.id if ctx.guild else None
-        self.remove_access(guild_id, member.id)
-        await ctx.reply(f"❌ {member.mention} ka access hata diya gaya hai.")
+        self.remove_global_access(member.id)
+        await ctx.reply(f"<a:spider_cross:1494181311525687347> Global access revoked for **{member.name}**.")
 
     # =========================
     # 🚀 MASSPING COMMANDS
     # =========================
 
-    @commands.hybrid_command(name="massping", description="Spam ping a user")
+    @commands.hybrid_command(name="massping", description="Repeatedly ping a user")
     @app_commands.describe(member="User to ping", amount="Number of pings")
     @app_commands.allowed_installs(guilds=True, users=True)
     @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     async def massping(self, ctx, member: discord.User, amount: int):
         if not await self.check_permissions(ctx):
-            return await ctx.reply("❌ Access denied. Aapke paas permission nahi hai.")
+            return await ctx.reply("<a:spider_cross:1494181311525687347> Access denied. Global permission required.")
         
         if amount <= 0:
-            return await ctx.reply("Invalid amount")
+            return await ctx.reply("<a:spider_cross:1494181311525687347> Please provide a valid amount.")
         
         channel_id = ctx.channel.id
         if self.active.get(channel_id):
-            return await ctx.reply("⚠️ Already running here")
+            return await ctx.reply("⚠️ A process is already running in this channel.")
 
         self.active[channel_id] = True
-        await ctx.reply(f"⚡ Starting mass ping x{amount}")
+        await ctx.reply(f"⚡ Starting mass ping: **{amount}** times.")
         
         for _ in range(amount):
-            if not self.active.get(channel_id): break
+            if not self.active.get(channel_id):
+                break
             await ctx.send(member.mention)
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(0.6)
 
         self.active[channel_id] = False
-        await ctx.send("✅ Done")
+        await ctx.send("<a:greentick:1494180392440303777> Mass ping completed.")
 
-    @commands.hybrid_command(name="mpstop", description="Stop mass ping")
+    @commands.hybrid_command(name="mpstop", description="Stop the current mass ping process")
     @app_commands.allowed_installs(guilds=True, users=True)
     @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     async def mpstop(self, ctx):
         if not await self.check_permissions(ctx):
-            return await ctx.reply("❌ Access denied")
+            return await ctx.reply("<a:spider_cross:1494181311525687347> Access denied.")
+            
         channel_id = ctx.channel.id
-        self.active[channel_id] = False
-        await ctx.reply("🛑 Stopped")
+        if self.active.get(channel_id):
+            self.active[channel_id] = False
+            await ctx.reply("<a:greentick:1494180392440303777> Process stopped successfully.")
+        else:
+            await ctx.reply("<a:spider_cross:1494181311525687347> No process is currently running.")
 
 async def setup(bot):
     await bot.add_cog(MassPing(bot))

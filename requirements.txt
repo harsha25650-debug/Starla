@@ -5,3 +5,4 @@ aiosqlite
 PyNaCl==1.5.0
 yt-dlp
 asyncio
+spotipy

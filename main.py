@@ -10,7 +10,7 @@ import zipfile
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 from discord.ext import commands, tasks
-from discord import Streaming # 👈 Streaming status ke liye zaroori hai
+from discord import Streaming
 
 logging.basicConfig(level=logging.INFO)
 
@@ -18,11 +18,9 @@ logging.basicConfig(level=logging.INFO)
 def run_health_server():
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
-            self.send_response(200)
-            self.end_headers()
+            self.send_response(200); self.end_headers()
             self.wfile.write(b"NovaX Alive")
         def log_message(self, format, *args): return
-    
     port = int(os.environ.get("PORT", 8080))
     try:
         server = HTTPServer(('0.0.0.0', port), Handler)
@@ -46,65 +44,52 @@ def install_ffmpeg():
 # --- 🤖 BOT CLASS ---
 class NovaX(commands.Bot):
     def __init__(self):
+        # Intents check: Message content intents zaroori hain commands ke liye
+        intents = discord.Intents.all()
         super().__init__(
             command_prefix="!", 
-            intents=discord.Intents.all(), 
-            help_command=None
+            intents=intents, 
+            help_command=None,
+            case_insensitive=True # !P ya !p dono chalenge
         )
     
     async def setup_hook(self):
-        # 1. Background Health Server
         threading.Thread(target=run_health_server, daemon=True).start()
-        
-        # 2. Setup Folders
         os.makedirs("data", exist_ok=True)
         db_path = "data/database.json"
         if not os.path.exists(db_path):
-            with open(db_path, "w") as f:
-                json.dump({}, f)
+            with open(db_path, "w") as f: json.dump({}, f)
         
-        # 3. FFmpeg & Database
         install_ffmpeg()
         from database import Database
         self.db = Database(db_path)
         
-        # 4. Load Extensions
+        # Extension Loading (Ye check karega ki music.py load hui ya nahi)
         for f in os.listdir('./'):
             if f.endswith('.py') and f not in ['main.py', 'database.py']:
                 try:
                     await self.load_extension(f[:-3])
-                    print(f"✅ Loaded: {f}")
+                    print(f"✅ Loaded extension: {f}")
                 except Exception as e:
-                    print(f"❌ Failed to load {f}: {e}")
-
-    # --- 🔄 AUTO STATUS LOOP (Purple Badge Fix) ---
-    @tasks.loop(minutes=5)
-    async def update_status(self):
-        if self.is_ready():
-            # Purple Badge ke liye Streaming activity zaroori hai
-            status_text = f"NovaX Music | {len(self.guilds)} Servers"
-            await self.change_presence(
-                activity=Streaming(
-                    name=status_text, 
-                    url="https://www.twitch.tv/novax_music" # Twitch URL se purple badge aata hai
-                )
-            )
+                    print(f"❌ Failed to load extension {f}: {e}")
 
     async def on_ready(self):
         print(f"---")
-        print(f"✅ {self.user} is Online | Version 1.10")
+        print(f"✅ {self.user.name} is Online & Ready")
         print(f"---")
-        
-        # Status loop start karna
         if not self.update_status.is_running():
             self.update_status.start()
-            
-        # Slash Commands Sync
-        try:
-            await self.tree.sync()
-            print("✅ Slash commands synced!")
-        except Exception as e:
-            print(f"❌ Sync failed: {e}")
+        await self.tree.sync()
+
+    @tasks.loop(minutes=5)
+    async def update_status(self):
+        status_text = f"NovaX Music | {len(self.guilds)} Servers"
+        await self.change_presence(activity=Streaming(name=status_text, url="https://twitch.tv/novax_bot"))
+
+    # Commands na lene ka sabse bada fix
+    async def on_message(self, message):
+        if message.author.bot: return
+        await self.process_commands(message)
 
 if __name__ == "__main__":
     bot = NovaX()

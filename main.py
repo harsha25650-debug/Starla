@@ -83,7 +83,7 @@ class NovaX(commands.Bot):
 
     @tasks.loop(minutes=5)
     async def update_status(self):
-        status_text = f"NovaX Music | {len(self.guilds)} Servers"
+        status_text = f"NovaX v11 | {len(self.guilds)} Servers"
         await self.change_presence(activity=Streaming(name=status_text, url="https://twitch.tv/novax_bot"))
 
     # Commands na lene ka sabse bada fix

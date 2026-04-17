@@ -59,7 +59,7 @@ class MassPing(commands.Cog):
         await ctx.reply(f"<a:spider_cross:1494181311525687347> Global access revoked for **{member.name}**.")
 
     # =========================
-    # 🚀 MASSPING COMMANDS
+    # 🚀 RESTORED COMMANDS
     # =========================
 
     @commands.hybrid_command(name="massping", description="Repeatedly ping a user")
@@ -81,15 +81,52 @@ class MassPing(commands.Cog):
         await ctx.reply(f"⚡ Starting mass ping: **{amount}** times.")
         
         for _ in range(amount):
-            if not self.active.get(channel_id):
-                break
+            if not self.active.get(channel_id): break
             await ctx.send(member.mention)
             await asyncio.sleep(0.6)
 
         self.active[channel_id] = False
         await ctx.send("<a:greentick:1494180392440303777> Mass ping completed.")
 
-    @commands.hybrid_command(name="mpstop", description="Stop the current mass ping process")
+    @commands.hybrid_command(name="ghostping", description="Ping and instantly delete the message")
+    @app_commands.describe(member="User to ghost ping", amount="Number of pings")
+    @app_commands.allowed_installs(guilds=True, users=True)
+    @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+    async def ghostping(self, ctx, member: discord.User, amount: int):
+        if not await self.check_permissions(ctx):
+            return await ctx.reply("<a:spider_cross:1494181311525687347> Access denied.")
+        
+        if amount <= 0: return
+        
+        channel_id = ctx.channel.id
+        self.active[channel_id] = True
+        await ctx.reply(f"👻 Starting ghost ping: **{amount}** times.", ephemeral=True)
+
+        for _ in range(amount):
+            if not self.active.get(channel_id): break
+            msg = await ctx.send(member.mention)
+            await asyncio.sleep(0.3)
+            try: await msg.delete()
+            except: pass
+            
+        self.active[channel_id] = False
+        await ctx.send("<a:greentick:1494180392440303777> Ghost ping process finished.", ephemeral=True)
+
+    @commands.hybrid_command(name="mpfast", description="Send multiple pings in a single message")
+    @app_commands.describe(member="User to ping", amount="Number of pings (Max 80)")
+    @app_commands.allowed_installs(guilds=True, users=True)
+    @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+    async def mpfast(self, ctx, member: discord.User, amount: int):
+        if not await self.check_permissions(ctx):
+            return await ctx.reply("<a:spider_cross:1494181311525687347> Access denied.")
+
+        if amount > 80: amount = 80
+        if amount <= 0: return
+
+        pings = " ".join([member.mention for _ in range(amount)])
+        await ctx.send(pings)
+
+    @commands.hybrid_command(name="mpstop", description="Stop any active ping process")
     @app_commands.allowed_installs(guilds=True, users=True)
     @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     async def mpstop(self, ctx):
@@ -101,7 +138,7 @@ class MassPing(commands.Cog):
             self.active[channel_id] = False
             await ctx.reply("<a:greentick:1494180392440303777> Process stopped successfully.")
         else:
-            await ctx.reply("<a:spider_cross:1494181311525687347> No process is currently running.")
+            await ctx.reply("<a:spider_cross:1494181311525687347> No active process found in this channel.")
 
 async def setup(bot):
     await bot.add_cog(MassPing(bot))

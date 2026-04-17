@@ -10,6 +10,7 @@ import zipfile
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 from discord.ext import commands, tasks
+from discord import Streaming # 👈 Streaming status ke liye zaroori hai
 
 logging.basicConfig(level=logging.INFO)
 
@@ -21,6 +22,7 @@ def run_health_server():
             self.end_headers()
             self.wfile.write(b"NovaX Alive")
         def log_message(self, format, *args): return
+    
     port = int(os.environ.get("PORT", 8080))
     try:
         server = HTTPServer(('0.0.0.0', port), Handler)
@@ -44,13 +46,17 @@ def install_ffmpeg():
 # --- 🤖 BOT CLASS ---
 class NovaX(commands.Bot):
     def __init__(self):
-        super().__init__(command_prefix="!", intents=discord.Intents.all(), help_command=None)
+        super().__init__(
+            command_prefix="!", 
+            intents=discord.Intents.all(), 
+            help_command=None
+        )
     
     async def setup_hook(self):
         # 1. Background Health Server
         threading.Thread(target=run_health_server, daemon=True).start()
         
-        # 2. Setup Folders (CRASH FIX)
+        # 2. Setup Folders
         os.makedirs("data", exist_ok=True)
         db_path = "data/database.json"
         if not os.path.exists(db_path):
@@ -71,11 +77,34 @@ class NovaX(commands.Bot):
                 except Exception as e:
                     print(f"❌ Failed to load {f}: {e}")
 
+    # --- 🔄 AUTO STATUS LOOP (Purple Badge Fix) ---
+    @tasks.loop(minutes=5)
+    async def update_status(self):
+        if self.is_ready():
+            # Purple Badge ke liye Streaming activity zaroori hai
+            status_text = f"NovaX Music | {len(self.guilds)} Servers"
+            await self.change_presence(
+                activity=Streaming(
+                    name=status_text, 
+                    url="https://www.twitch.tv/novax_music" # Twitch URL se purple badge aata hai
+                )
+            )
+
     async def on_ready(self):
         print(f"---")
-        print(f"✅ {self.user} is Online")
+        print(f"✅ {self.user} is Online | Version 1.10")
         print(f"---")
-        await self.tree.sync()
+        
+        # Status loop start karna
+        if not self.update_status.is_running():
+            self.update_status.start()
+            
+        # Slash Commands Sync
+        try:
+            await self.tree.sync()
+            print("✅ Slash commands synced!")
+        except Exception as e:
+            print(f"❌ Sync failed: {e}")
 
 if __name__ == "__main__":
     bot = NovaX()

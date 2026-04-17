@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import asyncio
+import random
 
 class MassPing(commands.Cog):
     def __init__(self, bot):
@@ -52,7 +53,7 @@ class MassPing(commands.Cog):
         await ctx.reply(f"<a:spider_cross:1494181311525687347> Global access revoked for **{member.name}**.")
 
     # =========================
-    # 🚀 OPTIMIZED COMMANDS
+    # 🚀 RE-OPTIMIZED COMMANDS
     # =========================
 
     @commands.hybrid_command(name="massping", description="Repeatedly ping a user")
@@ -64,24 +65,36 @@ class MassPing(commands.Cog):
         
         channel_id = ctx.channel.id
         if self.active.get(channel_id):
-            return await ctx.reply("⚠️ Process already running.")
+            return await ctx.reply("⚠️ Process already running in this channel.")
 
         self.active[channel_id] = True
         await ctx.reply(f"⚡ Starting mass ping: **{amount}** times.")
         
-        for i in range(1, amount + 1):
-            if not self.active.get(channel_id): break
+        sent = 0
+        while sent < amount:
+            if not self.active.get(channel_id):
+                break
+                
             try:
                 await ctx.send(member.mention)
-                # Anti-Rate Limit Logic:
-                if i % 5 == 0:
-                    await asyncio.sleep(2.5) # Longer sleep every 5 messages
+                sent += 1
+                
+                # 🛡️ SMART JITTER DELAY (Crucial for DMs)
+                if sent % 4 == 0:
+                    # Har 4 messages ke baad lamba random break (3 to 5 seconds)
+                    await asyncio.sleep(random.uniform(3.5, 5.2))
                 else:
-                    await asyncio.sleep(0.8) # Normal delay
+                    # Normal delay (thoda fast but safe)
+                    await asyncio.sleep(random.uniform(0.9, 1.4))
+                    
             except discord.HTTPException as e:
-                if e.status == 429: # Rate limit hit
-                    await asyncio.sleep(10) # Wait 10 seconds if blocked
-                else: break
+                if e.status == 429: # Rate Limited
+                    retry_after = e.retry_after if hasattr(e, 'retry_after') else 10
+                    await asyncio.sleep(retry_after + 2)
+                else:
+                    break
+            except Exception:
+                break
 
         self.active[channel_id] = False
         await ctx.send("<a:greentick:1494180392440303777> Mass ping completed.")
@@ -97,14 +110,21 @@ class MassPing(commands.Cog):
         self.active[channel_id] = True
         await ctx.reply(f"👻 Ghost pinging: **{amount}** times.", ephemeral=True)
 
-        for i in range(1, amount + 1):
+        sent = 0
+        while sent < amount:
             if not self.active.get(channel_id): break
             try:
                 msg = await ctx.send(member.mention)
+                sent += 1
                 await asyncio.sleep(0.4)
                 await msg.delete()
-                if i % 5 == 0: await asyncio.sleep(2.0)
-            except: pass
+                
+                if sent % 3 == 0: 
+                    await asyncio.sleep(random.uniform(2.5, 4.0))
+                else:
+                    await asyncio.sleep(0.8)
+            except:
+                pass
             
         self.active[channel_id] = False
 

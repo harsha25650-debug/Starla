@@ -8,6 +8,9 @@ class MassPing(commands.Cog):
         self.bot = bot
         self.active = {}
 
+    # =========================
+    # 🔑 ACCESS SYSTEM
+    # =========================
     def get_global_access(self):
         return self.bot.db.get("mpaccess.global", [])
 
@@ -47,38 +50,34 @@ class MassPing(commands.Cog):
         await ctx.reply(f"<a:spider_red_dot:1494179666133516411> Removed access from {member}.")
 
     # =========================
-    # 🚀 MASSPING
+    # 🚀 MASSPING (FAST SINGLE)
     # =========================
     @commands.hybrid_command(name="massping")
     async def massping(self, ctx, member: discord.User, amount: int):
         if not await self.check_permissions(ctx):
             return await ctx.reply("<a:spider_red_dot:1494179666133516411> Access denied.")
 
-        amount = min(amount, 500)
+        amount = min(amount, 200)
 
         channel_id = ctx.channel.id
         if self.active.get(channel_id):
             return await ctx.reply("⚠️ Already running here.")
 
         self.active[channel_id] = True
-        await ctx.reply(f"<a:spider_red_dot:1494179666133516411> Starting {amount} pings...")
+        await ctx.reply(f"<a:spider_red_dot:1494179666133516411> Starting fast ping...")
 
         sent = 0
-        batch_size = 5
 
         while sent < amount:
             if not self.active.get(channel_id):
                 break
 
             try:
-                remaining = amount - sent
-                current = min(batch_size, remaining)
+                await ctx.send(member.mention)
+                sent += 1
 
-                msg = " ".join([member.mention] * current)
-                await ctx.send(msg)
-
-                sent += current
-                await asyncio.sleep(1.2)
+                # ⚡ fastest safe delay
+                await asyncio.sleep(0.8)
 
             except discord.HTTPException as e:
                 if e.status == 429:
@@ -86,36 +85,58 @@ class MassPing(commands.Cog):
                     await asyncio.sleep(retry + 1)
                 else:
                     break
+            except:
+                break
 
         self.active[channel_id] = False
         await ctx.send("<a:greentick:1494180392440303777> Mass ping completed.")
 
     # =========================
-    # 👻 GHOSTPING
+    # 👻 GHOSTPING (SILENT)
     # =========================
     @commands.hybrid_command(name="ghostping")
     async def ghostping(self, ctx, member: discord.User, amount: int):
         if not await self.check_permissions(ctx):
-            return await ctx.reply("<a:spider_red_dot:1494179666133516411> Access denied.")
+            try:
+                await ctx.message.delete()
+            except:
+                pass
+            return
 
         amount = min(amount, 100)
 
         channel_id = ctx.channel.id
         self.active[channel_id] = True
 
-        await ctx.reply(f"<a:spider_red_dot:1494179666133516411> Ghost pinging {amount} times...", ephemeral=True)
+        # delete command message
+        try:
+            await ctx.message.delete()
+        except:
+            pass
 
-        for _ in range(amount):
+        sent = 0
+
+        while sent < amount:
             if not self.active.get(channel_id):
                 break
 
             try:
                 msg = await ctx.send(member.mention)
-                await asyncio.sleep(0.5)
+                sent += 1
+
+                await asyncio.sleep(0.4)
                 await msg.delete()
-                await asyncio.sleep(1.0)
+
+                await asyncio.sleep(0.9)
+
+            except discord.HTTPException as e:
+                if e.status == 429:
+                    retry = getattr(e, "retry_after", 5)
+                    await asyncio.sleep(retry + 1)
+                else:
+                    break
             except:
-                pass
+                break
 
         self.active[channel_id] = False
 

@@ -8,9 +8,6 @@ class MassPing(commands.Cog):
         self.bot = bot
         self.active = {}
 
-    # =========================
-    # 🔑 ACCESS SYSTEM
-    # =========================
     def get_global_access(self):
         return self.bot.db.get("mpaccess.global", [])
 
@@ -38,36 +35,36 @@ class MassPing(commands.Cog):
     @commands.hybrid_command(name="mpaccess")
     async def mpaccess(self, ctx, member: discord.User):
         if not await self.bot.is_owner(ctx.author):
-            return await ctx.reply("❌ Only owner allowed.")
+            return await ctx.reply("<a:spider_red_dot:1494179666133516411> Only owner allowed.")
         self.add_global_access(member.id)
-        await ctx.reply(f"✅ {member} given access.")
+        await ctx.reply(f"<a:greentick:1494180392440303777> {member} given access.")
 
     @commands.hybrid_command(name="mpremove")
     async def mpremove(self, ctx, member: discord.User):
         if not await self.bot.is_owner(ctx.author):
-            return await ctx.reply("❌ Access denied.")
+            return await ctx.reply("<a:spider_red_dot:1494179666133516411> Access denied.")
         self.remove_global_access(member.id)
-        await ctx.reply(f"❌ Removed access from {member}.")
+        await ctx.reply(f"<a:spider_red_dot:1494179666133516411> Removed access from {member}.")
 
     # =========================
-    # 🚀 MASSPING (OPTIMIZED)
+    # 🚀 MASSPING
     # =========================
     @commands.hybrid_command(name="massping")
     async def massping(self, ctx, member: discord.User, amount: int):
         if not await self.check_permissions(ctx):
-            return await ctx.reply("❌ Access denied.")
+            return await ctx.reply("<a:spider_red_dot:1494179666133516411> Access denied.")
 
-        amount = min(amount, 500)  # safety cap
+        amount = min(amount, 500)
 
         channel_id = ctx.channel.id
         if self.active.get(channel_id):
             return await ctx.reply("⚠️ Already running here.")
 
         self.active[channel_id] = True
-        await ctx.reply(f"⚡ Sending {amount} pings...")
+        await ctx.reply(f"<a:spider_red_dot:1494179666133516411> Starting {amount} pings...")
 
         sent = 0
-        batch_size = 5  # safe + fast
+        batch_size = 5
 
         while sent < amount:
             if not self.active.get(channel_id):
@@ -91,24 +88,24 @@ class MassPing(commands.Cog):
                     break
 
         self.active[channel_id] = False
-        await ctx.send("✅ Done.")
+        await ctx.send("<a:greentick:1494180392440303777> Mass ping completed.")
 
     # =========================
-    # 👻 GHOSTPING (SAFER)
+    # 👻 GHOSTPING
     # =========================
     @commands.hybrid_command(name="ghostping")
     async def ghostping(self, ctx, member: discord.User, amount: int):
         if not await self.check_permissions(ctx):
-            return await ctx.reply("❌ Access denied.")
+            return await ctx.reply("<a:spider_red_dot:1494179666133516411> Access denied.")
 
         amount = min(amount, 100)
 
         channel_id = ctx.channel.id
         self.active[channel_id] = True
 
-        await ctx.reply(f"👻 Ghost pinging {amount} times...", ephemeral=True)
+        await ctx.reply(f"<a:spider_red_dot:1494179666133516411> Ghost pinging {amount} times...", ephemeral=True)
 
-        for i in range(amount):
+        for _ in range(amount):
             if not self.active.get(channel_id):
                 break
 
@@ -140,7 +137,7 @@ class MassPing(commands.Cog):
     @commands.hybrid_command(name="mpstop")
     async def mpstop(self, ctx):
         self.active[ctx.channel.id] = False
-        await ctx.reply("✅ Stopped.")
+        await ctx.reply("<a:greentick:1494180392440303777> Stopped.")
 
 async def setup(bot):
     await bot.add_cog(MassPing(bot))

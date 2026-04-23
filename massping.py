@@ -2,13 +2,15 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import asyncio
-import random
 
 class MassPing(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.active = {}
 
+    # =========================
+    # 🔑 ACCESS SYSTEM
+    # =========================
     def get_global_access(self):
         return self.bot.db.get("mpaccess.global", [])
 
@@ -24,125 +26,121 @@ class MassPing(commands.Cog):
             users.remove(user_id)
             self.bot.db.set("mpaccess.global", users)
 
-    async def check_permissions(self, interaction_or_ctx):
-        user = interaction_or_ctx.user if isinstance(interaction_or_ctx, discord.Interaction) else interaction_or_ctx.author
+    async def check_permissions(self, ctx):
+        user = ctx.author if hasattr(ctx, "author") else ctx.user
         if await self.bot.is_owner(user):
             return True
         return user.id in self.get_global_access()
 
     # =========================
-    # 🔑 ACCESS MANAGEMENT
+    # 🔑 ACCESS COMMANDS
     # =========================
-    
-    @commands.hybrid_command(name="mpaccess", description="Grant global massping access to a user")
-    @app_commands.allowed_installs(guilds=True, users=True)
-    @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+    @commands.hybrid_command(name="mpaccess")
     async def mpaccess(self, ctx, member: discord.User):
         if not await self.bot.is_owner(ctx.author):
-            return await ctx.reply("<a:spider_cross:1494181311525687347> Only the bot owner can manage global access.")
+            return await ctx.reply("❌ Only owner allowed.")
         self.add_global_access(member.id)
-        await ctx.reply(f"<a:greentick:1494180392440303777> **{member.name}** has been granted **Global Access**.")
+        await ctx.reply(f"✅ {member} given access.")
 
-    @commands.hybrid_command(name="mpremove", description="Revoke global massping access")
-    @app_commands.allowed_installs(guilds=True, users=True)
-    @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+    @commands.hybrid_command(name="mpremove")
     async def mpremove(self, ctx, member: discord.User):
         if not await self.bot.is_owner(ctx.author):
-            return await ctx.reply("<a:spider_cross:1494181311525687347> Access denied.")
+            return await ctx.reply("❌ Access denied.")
         self.remove_global_access(member.id)
-        await ctx.reply(f"<a:spider_cross:1494181311525687347> Global access revoked for **{member.name}**.")
+        await ctx.reply(f"❌ Removed access from {member}.")
 
     # =========================
-    # 🚀 RE-OPTIMIZED COMMANDS
+    # 🚀 MASSPING (OPTIMIZED)
     # =========================
-
-    @commands.hybrid_command(name="massping", description="Repeatedly ping a user")
-    @app_commands.allowed_installs(guilds=True, users=True)
-    @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+    @commands.hybrid_command(name="massping")
     async def massping(self, ctx, member: discord.User, amount: int):
         if not await self.check_permissions(ctx):
-            return await ctx.reply("<a:spider_cross:1494181311525687347> Access denied.")
-        
+            return await ctx.reply("❌ Access denied.")
+
+        amount = min(amount, 500)  # safety cap
+
         channel_id = ctx.channel.id
         if self.active.get(channel_id):
-            return await ctx.reply("⚠️ Process already running in this channel.")
+            return await ctx.reply("⚠️ Already running here.")
 
         self.active[channel_id] = True
-        await ctx.reply(f"⚡ Starting mass ping: **{amount}** times.")
-        
+        await ctx.reply(f"⚡ Sending {amount} pings...")
+
         sent = 0
+        batch_size = 5  # safe + fast
+
         while sent < amount:
             if not self.active.get(channel_id):
                 break
-                
+
             try:
-                await ctx.send(member.mention)
-                sent += 1
-                
-                # 🛡️ SMART JITTER DELAY (Crucial for DMs)
-                if sent % 4 == 0:
-                    # Har 4 messages ke baad lamba random break (3 to 5 seconds)
-                    await asyncio.sleep(random.uniform(3.5, 5.2))
-                else:
-                    # Normal delay (thoda fast but safe)
-                    await asyncio.sleep(random.uniform(0.9, 1.4))
-                    
+                remaining = amount - sent
+                current = min(batch_size, remaining)
+
+                msg = " ".join([member.mention] * current)
+                await ctx.send(msg)
+
+                sent += current
+                await asyncio.sleep(1.2)
+
             except discord.HTTPException as e:
-                if e.status == 429: # Rate Limited
-                    retry_after = e.retry_after if hasattr(e, 'retry_after') else 10
-                    await asyncio.sleep(retry_after + 2)
+                if e.status == 429:
+                    retry = getattr(e, "retry_after", 5)
+                    await asyncio.sleep(retry + 1)
                 else:
                     break
-            except Exception:
-                break
 
         self.active[channel_id] = False
-        await ctx.send("<a:greentick:1494180392440303777> Mass ping completed.")
+        await ctx.send("✅ Done.")
 
-    @commands.hybrid_command(name="ghostping", description="Ping and delete instantly")
-    @app_commands.allowed_installs(guilds=True, users=True)
-    @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+    # =========================
+    # 👻 GHOSTPING (SAFER)
+    # =========================
+    @commands.hybrid_command(name="ghostping")
     async def ghostping(self, ctx, member: discord.User, amount: int):
         if not await self.check_permissions(ctx):
-            return await ctx.reply("<a:spider_cross:1494181311525687347> Access denied.")
-        
+            return await ctx.reply("❌ Access denied.")
+
+        amount = min(amount, 100)
+
         channel_id = ctx.channel.id
         self.active[channel_id] = True
-        await ctx.reply(f"👻 Ghost pinging: **{amount}** times.", ephemeral=True)
 
-        sent = 0
-        while sent < amount:
-            if not self.active.get(channel_id): break
+        await ctx.reply(f"👻 Ghost pinging {amount} times...", ephemeral=True)
+
+        for i in range(amount):
+            if not self.active.get(channel_id):
+                break
+
             try:
                 msg = await ctx.send(member.mention)
-                sent += 1
-                await asyncio.sleep(0.4)
+                await asyncio.sleep(0.5)
                 await msg.delete()
-                
-                if sent % 3 == 0: 
-                    await asyncio.sleep(random.uniform(2.5, 4.0))
-                else:
-                    await asyncio.sleep(0.8)
+                await asyncio.sleep(1.0)
             except:
                 pass
-            
+
         self.active[channel_id] = False
 
-    @commands.hybrid_command(name="mpfast", description="Send 80 pings in one message")
-    @app_commands.allowed_installs(guilds=True, users=True)
-    @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+    # =========================
+    # ⚡ FAST BURST
+    # =========================
+    @commands.hybrid_command(name="mpfast")
     async def mpfast(self, ctx, member: discord.User, amount: int):
-        if not await self.check_permissions(ctx): return
-        amount = min(amount, 80)
-        pings = " ".join([member.mention for _ in range(amount)])
-        await ctx.send(pings)
+        if not await self.check_permissions(ctx):
+            return
 
-    @commands.hybrid_command(name="mpstop", description="Stop pings")
-    @app_commands.allowed_installs(guilds=True, users=True)
-    @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+        amount = min(amount, 80)
+        msg = " ".join([member.mention] * amount)
+        await ctx.send(msg)
+
+    # =========================
+    # 🛑 STOP
+    # =========================
+    @commands.hybrid_command(name="mpstop")
     async def mpstop(self, ctx):
         self.active[ctx.channel.id] = False
-        await ctx.reply("<a:greentick:1494180392440303777> Stopped.")
+        await ctx.reply("✅ Stopped.")
 
 async def setup(bot):
     await bot.add_cog(MassPing(bot))

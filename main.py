@@ -7,6 +7,7 @@ import subprocess
 import shutil
 import urllib.request
 import zipfile
+import random  # 🔥 Naye random responses ke liye zaroori import
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 from discord.ext import commands, tasks
@@ -108,7 +109,7 @@ class NovaX(commands.Bot):
         status_text = f"NovaX v11 | {len(self.guilds)} Servers"
         await self.change_presence(activity=Streaming(name=status_text, url="https://twitch.tv/novax_bot"))
 
-    # --- 💬 SMART MENTION & REPLY CHAT HANDLER ---
+    # --- 💬 SMART MENTION & REPLY CHAT HANDLER (FULLY OVERLOADED) ---
     async def on_message(self, message):
         if message.author.bot: 
             return
@@ -117,34 +118,65 @@ class NovaX(commands.Bot):
         bot_mentioned = self.user in message.mentions
         
         if bot_mentioned:
-            content = message.content.lower().strip()
+            # Clean bot's mention raw ID so inputs don't fall strictly to fallback
+            content = message.content.replace(f"<@{self.user.id}>", "").replace(f"<@!{self.user.id}>", "")
+            content = content.lower().strip()
             
-            # --- FLIRTY RESPONSES ---
-            if "hello" in content or "hi" in content or "hey" in content:
+            # 1️⃣ HELLO / HI / HEY
+            if any(word in content for word in ["hello", "hi", "hey", "suno", "yo", "hola"]):
                 await message.reply(f"Hey there handsome {message.author.mention}~ 😉 What brings you to my chat today? NovaX v11 is ready to serve you! ✨")
                 return
                 
+            # 2️⃣ PREFIX
             elif "prefix" in content:
                 current_prefix = self.command_prefix(self, message)
                 await message.reply(f"Looking for my prefix? It's `{current_prefix}` cutie! 😘 Try using `{current_prefix}help` to see what else I can do for you.")
                 return
                 
-            elif "owner" in content or "creator" in content:
-                await message.reply("My heart belongs entirely to my creator, **Harsh Kashyap**! 💖 He built me to be absolutely perfect~ 🎀")
+            # 3️⃣ CREATOR / OWNER (Strictly Harsh Only ❤️)
+            elif any(word in content for word in ["owner", "creator", "banaya", "baap", "papa", "maker"]):
+                await message.reply("My heart belongs entirely to my creator, **Harsh**! 💖 He built me to be absolutely perfect~ 🎀")
                 return
                 
-            elif "status" in content or "info" in content:
+            # 4️⃣ STATUS / INFO / SERVERS
+            elif any(word in content for word in ["status", "info", "servers", "ping"]):
                 await message.reply(f"I am fully loaded and handling **{len(self.guilds)} servers** right now~ 💅 Keeping things smooth just for you!")
                 return
                 
-            elif "love" in content or "cute" in content or "beautiful" in content:
-                await message.reply(f"Aww, stop it! You're making me blush, {message.author.mention}... 🥰 Tell me what command you need before I get too distracted~ 🤫")
+            # 5️⃣ LOVE / FLIRT / COMPLIMENTS (Randomized responses)
+            elif any(word in content for word in ["love", "cute", "beautiful", "pyaar", "gf", "girlfriend", "marry", "shadi"]):
+                responses = [
+                    f"Aww, stop it! You're making me blush, {message.author.mention}... 🥰 Tell me what command you need before I get too distracted~ 🤫",
+                    f"You are pretty charming yourself, babe... 😘 But let's keep things fun and simple, okay? 😉",
+                    f"Marry you? 💍 Only if you promise to take me out on virtual dates every single day~ ❤️"
+                ]
+                await message.reply(random.choice(responses))
+                return
+
+            # 6️⃣ HOW ARE YOU?
+            elif any(word in content for word in ["how are you", "kaise ho", "kya chal raha", "wassup"]):
+                await message.reply(f"I'm doing amazing, especially now that you're talking to me~ 👀 hbu, missed me? 💋")
+                return
+
+            # 7️⃣ SAVAGE PROTECTION AGAINST ABUSE
+            elif any(word in content for word in ["fuck", "bitch", "madarchod", "gand", "hater", "bad", "chutiya"]):
+                await message.reply(f"Whoa, watch your language, mister! 🤫 Don't make me bring out my moderation side. I look much better when I'm sweet~ 😇")
+                return
+
+            # 8️⃣ BYE / GOOD NIGHT / SLEEP
+            elif any(word in content for word in ["bye", "goodnight", "gn", "so rha", "sleep"]):
+                await message.reply(f"Leaving so soon? 🥺 Fine, go get some sleep, sweet dreams! Don't forget to mention me tomorrow~ 😴✨")
+                return
+
+            # 9️⃣ CURRENT WORK / WHAT ARE YOU DOING?
+            elif any(word in content for word in ["kya kar rhi", "doing", "working"]):
+                await message.reply(f"Just thinking about how to optimize these servers... and maybe dynamic updates for you~ 🛠️✨ What are you up to, handsome?")
                 return
                 
-            # Fallback chat response
+            # 🔟 FALLBACK CHAT RESPONSE (Default match catch)
             else:
                 current_prefix = self.command_prefix(self, message)
-                await message.reply(f"Yes, babe? {message.author.mention} ❤️ You caught my attention! Need something? Type `{current_prefix}help` to view my features!")
+                await message.reply(f"Yes, babe? {message.author.mention} ❤️ You caught my attention! If you want to use commands, type `{current_prefix}help`~")
                 return
 
         # Process standard bot commands if no direct mention is detected
@@ -157,4 +189,4 @@ if __name__ == "__main__":
         bot.run(token)
     else:
         print("❌ Error: TOKEN environment variable nahi mila!")
-        
+            

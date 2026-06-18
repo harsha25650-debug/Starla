@@ -7,25 +7,16 @@ import datetime
 import os
 import shutil
 
-# --- 🚀 RE-OPTIMIZED CONFIG TO BYPASS YT DETECTION ---
+# --- 🚀 RE-OPTIMIZED CONFIG FOR SOUNDCLOUD ENGINE ---
 ydl_opts = {
     'format': 'bestaudio/best',
     'quiet': True,
     'no_warnings': True,
     'nocheckcertificate': True,
-    'default_search': 'ytsearch1',
+    'default_search': 'scsearch1',  # 👈 'ytsearch' ki jagah SoundCloud search laga diya
     'source_address': '0.0.0.0',
-    # Bot detection ko thanda karne ke liye critical options:
-    'extractor_args': {
-        'youtube': {
-            'player_client': ['android_music', 'web'],
-            'skip': ['webpage']
-        }
-    },
     'http_headers': {
         'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
     }
 }
 
@@ -57,7 +48,6 @@ class Music(commands.Cog):
     async def play_music(self, ctx, info):
         if not ctx.voice_client: return
         
-        # Stream URL extraction with fallback check
         url = info.get('url') or info.get('formats')[0]['url']
         exe = self.get_ffmpeg()
         
@@ -72,7 +62,7 @@ class Music(commands.Cog):
             if info.get('thumbnail'): 
                 embed.set_image(url=info['thumbnail'])
             embed.description = (
-                f"{self.music_record} **Now Playing**\n\n"
+                f"{self.music_record} **Now Playing (SoundCloud)**\n\n"
                 f"{self.blue_arrow} **[{info['title']}]({info.get('webpage_url')})**\n"
                 f"{self.green_arrow} **Requested by:** {ctx.author.mention}"
             )
@@ -85,8 +75,8 @@ class Music(commands.Cog):
             info = self.queue[ctx.guild.id].pop(0)
             await self.play_music(ctx, info)
 
-    @commands.hybrid_command(name="play", aliases=["p"], description="Play music from YT/Spotify")
-    @app_commands.describe(search="Song name or link")
+    @commands.hybrid_command(name="play", aliases=["p"], description="Play music from SoundCloud")
+    @app_commands.describe(search="Song name or SoundCloud link")
     async def play(self, ctx, *, search: str):
         # 1. Voice Connection Check
         if not ctx.author.voice:
@@ -99,37 +89,33 @@ class Music(commands.Cog):
         if ctx.guild.id not in self.queue: self.queue[ctx.guild.id] = []
         if ctx.guild.id not in self.volume: self.volume[ctx.guild.id] = 1.0
 
-        m = await ctx.send(f"{self.loading} Processing...")
+        m = await ctx.send(f"{self.loading} Searching SoundCloud...")
 
-        # 3. Spotify Link Cleaning
-        if "spotify.com" in search:
-            search = search.split("?")[0]
-            await m.edit(content=f"{self.loading} Extracting Spotify metadata...")
-            # Note: Spotify streams generally require Title lookup on YouTube fallback
+        # 3. Spotify/YT Link Bypass Warning
+        if "youtube.com" in search or "youtu.be" in search or "spotify.com" in search:
+            # Agar koi direct link daale, toh link hata kar sirf search text banane ki koshish karein
+            return await m.edit(content=f"{self.cross} Links are disabled due to blocks! Please type the **Song Name and Artist** instead.")
 
-        # 4. YT-DLP Search Block with dynamic query fix
+        # 4. SoundCloud Search Block
         try:
-            query = search if search.startswith("http") else f"ytsearch:{search}"
+            query = search if search.startswith("http") else f"scsearch:{search}"
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 loop = self.bot.loop
-                # Extract data asynchronously to keep Railway container stable
                 data = await loop.run_in_executor(None, lambda: ydl.extract_info(query, download=False))
             
             if not data:
-                return await m.edit(content="❌ No results found on YouTube.")
+                return await m.edit(content="❌ No results found on SoundCloud.")
                 
             if 'entries' in data:
-                # If it's a search result query block
                 if not data['entries']:
                     return await m.edit(content="❌ No entries found.")
                 info = data['entries'][0]
             else:
-                # If it's a direct YouTube video URL link
                 info = data
                 
         except Exception as e:
-            print(f"YT-DLP Critical Error: {e}")
-            return await m.edit(content=f"{self.cross} YouTube Error: `IP Blocked or Bot Detected`. Try generic song names instead of direct links!")
+            print(f"SoundCloud Critical Error: {e}")
+            return await m.edit(content=f"{self.cross} Music Engine Error: `Failed to fetch audio stream`.")
 
         # 5. Play Logic
         if ctx.voice_client.is_playing() or ctx.voice_client.is_paused():

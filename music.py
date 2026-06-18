@@ -7,16 +7,19 @@ import datetime
 import os
 import shutil
 
-# --- 🚀 RE-OPTIMIZED CONFIG FOR SOUNDCLOUD ENGINE ---
+# --- 🚀 UPDATED SOUNDCLOUD BYPASS CONFIG ---
 ydl_opts = {
     'format': 'bestaudio/best',
     'quiet': True,
     'no_warnings': True,
     'nocheckcertificate': True,
-    'default_search': 'scsearch1',  # 👈 'ytsearch' ki jagah SoundCloud search laga diya
+    'default_search': 'scsearch1',
     'source_address': '0.0.0.0',
+    'force_generic_extractor': False, # Raw stream extraction helper
     'http_headers': {
-        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+        'Accept': '*/*',
+        'Accept-Encoding': 'gzip, deflate, br',
     }
 }
 
@@ -48,7 +51,16 @@ class Music(commands.Cog):
     async def play_music(self, ctx, info):
         if not ctx.voice_client: return
         
-        url = info.get('url') or info.get('formats')[0]['url']
+        # 🔥 MULTI-FALLBACK URL EXTRACTOR (Isse stream load fail nahi hoga)
+        url = None
+        if 'url' in info:
+            url = info['url']
+        elif 'formats' in info and len(info['formats']) > 0:
+            url = info['formats'][0]['url']
+            
+        if not url:
+            return await ctx.send(f"{self.cross} Audio Error: `Could not extract playable stream URL.`")
+            
         exe = self.get_ffmpeg()
         
         try:
@@ -78,30 +90,27 @@ class Music(commands.Cog):
     @commands.hybrid_command(name="play", aliases=["p"], description="Play music from SoundCloud")
     @app_commands.describe(search="Song name or SoundCloud link")
     async def play(self, ctx, *, search: str):
-        # 1. Voice Connection Check
         if not ctx.author.voice:
             return await ctx.send(f"{self.cross} Join a Voice Channel first!")
         
         if not ctx.voice_client:
             await ctx.author.voice.channel.connect()
 
-        # 2. Data Initialization
         if ctx.guild.id not in self.queue: self.queue[ctx.guild.id] = []
         if ctx.guild.id not in self.volume: self.volume[ctx.guild.id] = 1.0
 
         m = await ctx.send(f"{self.loading} Searching SoundCloud...")
 
-        # 3. Spotify/YT Link Bypass Warning
         if "youtube.com" in search or "youtu.be" in search or "spotify.com" in search:
-            # Agar koi direct link daale, toh link hata kar sirf search text banane ki koshish karein
-            return await m.edit(content=f"{self.cross} Links are disabled due to blocks! Please type the **Song Name and Artist** instead.")
+            return await m.edit(content=f"{self.cross} Links are disabled! Please type the **Song Name and Artist** text instead.")
 
-        # 4. SoundCloud Search Block
+        # 🔥 Stream Extraction Fix Block
         try:
             query = search if search.startswith("http") else f"scsearch:{search}"
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 loop = self.bot.loop
-                data = await loop.run_in_executor(None, lambda: ydl.extract_info(query, download=False))
+                # Re-fetch info with download=False but extracting all sub-entries
+                data = await loop.run_in_executor(None, lambda: ydl.extract_info(query, download=False, process=True))
             
             if not data:
                 return await m.edit(content="❌ No results found on SoundCloud.")
@@ -117,7 +126,6 @@ class Music(commands.Cog):
             print(f"SoundCloud Critical Error: {e}")
             return await m.edit(content=f"{self.cross} Music Engine Error: `Failed to fetch audio stream`.")
 
-        # 5. Play Logic
         if ctx.voice_client.is_playing() or ctx.voice_client.is_paused():
             self.queue[ctx.guild.id].append(info)
             return await m.edit(content=f"📝 **Added to Queue:** `{info['title']}`")
@@ -135,4 +143,4 @@ class Music(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(Music(bot))
-            
+    

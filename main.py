@@ -7,7 +7,7 @@ import subprocess
 import shutil
 import urllib.request
 import zipfile
-import random
+import random  # ✅ Missing import fix kiya
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 from discord.ext import commands, tasks
@@ -140,11 +140,35 @@ class NovaX(commands.Bot):
         # Regular commands ko pass karne ke liye (Bina mention ke standard commands chalengi)
         await self.process_commands(message)
 
+# --- 🏓 PING COMMAND ---
+@bot.command(name="ping")
+async def ping(ctx):
+    # Music.py ka dynamic loading emoji text ke sath use kiya hai
+    loading_emoji = "<a:spider_red_dot:1494179666133516411>"
+    
+    # 1. Message send karke internal REST API delay calculate karna
+    start_time = asyncio.get_event_loop().time()
+    msg = await ctx.send(f"{loading_emoji} *Calculating network response...*")
+    end_time = asyncio.get_event_loop().time()
+    
+    rest_latency = round((end_time - start_time) * 1000)
+    websocket_latency = round(bot.latency * 1000)
+    
+    # 2. Response ko clean Embed syntax structure mein convert kiya
+    embed = discord.Embed(
+        title="🏓 Pong!",
+        color=discord.Color.red()
+    )
+    embed.add_field(name="🌐 WebSocket Latency", value=f"`{websocket_latency}ms`", inline=True)
+    embed.add_field(name="⚡ REST API Latency", value=f"`{rest_latency}ms`", inline=True)
+    embed.set_footer(text="NovaX v11 • Performance Stable")
+    
+    await msg.edit(content=None, embed=embed)
+
 if __name__ == "__main__":
-    bot = NovaX()
     token = os.getenv("TOKEN")
     if token:
         bot.run(token)
     else:
         print("❌ Error: TOKEN environment variable nahi mila!")
-        
+            

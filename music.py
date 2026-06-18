@@ -6,10 +6,8 @@ import asyncio
 import datetime
 import os
 import shutil
-import spotipy
-from spotipy.oauth2 import SpotifyClientCredentials
 
-# --- CONFIG ---
+# --- 🚀 RE-OPTIMIZED CONFIG TO BYPASS YT DETECTION ---
 ydl_opts = {
     'format': 'bestaudio/best',
     'quiet': True,
@@ -17,12 +15,24 @@ ydl_opts = {
     'nocheckcertificate': True,
     'default_search': 'ytsearch1',
     'source_address': '0.0.0.0',
+    # Bot detection ko thanda karne ke liye critical options:
+    'extractor_args': {
+        'youtube': {
+            'player_client': ['android_music', 'web'],
+            'skip': ['webpage']
+        }
+    },
     'http_headers': {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
     }
 }
 
-FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn'}
+FFMPEG_OPTIONS = {
+    'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 
+    'options': '-vn'
+}
 
 class Music(commands.Cog):
     def __init__(self, bot):
@@ -47,7 +57,8 @@ class Music(commands.Cog):
     async def play_music(self, ctx, info):
         if not ctx.voice_client: return
         
-        url = info['url']
+        # Stream URL extraction with fallback check
+        url = info.get('url') or info.get('formats')[0]['url']
         exe = self.get_ffmpeg()
         
         try:
@@ -58,7 +69,8 @@ class Music(commands.Cog):
             ctx.voice_client.play(source, after=lambda e: self.bot.loop.create_task(self.play_next(ctx)))
             
             embed = discord.Embed(color=0x1DB954)
-            if info.get('thumbnail'): embed.set_image(url=info['thumbnail'])
+            if info.get('thumbnail'): 
+                embed.set_image(url=info['thumbnail'])
             embed.description = (
                 f"{self.music_record} **Now Playing**\n\n"
                 f"{self.blue_arrow} **[{info['title']}]({info.get('webpage_url')})**\n"
@@ -89,25 +101,35 @@ class Music(commands.Cog):
 
         m = await ctx.send(f"{self.loading} Processing...")
 
-        # 3. Spotify Detection (Link cleaning)
+        # 3. Spotify Link Cleaning
         if "spotify.com" in search:
-            # Simple extractor for Spotify links
-            search = search.split("?")[0] # Clean URL
-            # Note: Real Spotify requires Client ID, but we search by title as fallback
+            search = search.split("?")[0]
             await m.edit(content=f"{self.loading} Extracting Spotify metadata...")
+            # Note: Spotify streams generally require Title lookup on YouTube fallback
 
-        # 4. YT-DLP Search
+        # 4. YT-DLP Search Block with dynamic query fix
         try:
+            query = search if search.startswith("http") else f"ytsearch:{search}"
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 loop = self.bot.loop
-                data = await loop.run_in_executor(None, lambda: ydl.extract_info(f"ytsearch:{search}", download=False))
+                # Extract data asynchronously to keep Railway container stable
+                data = await loop.run_in_executor(None, lambda: ydl.extract_info(query, download=False))
             
-            if not data or 'entries' not in data or not data['entries']:
+            if not data:
                 return await m.edit(content="❌ No results found on YouTube.")
-            
-            info = data['entries'][0]
+                
+            if 'entries' in data:
+                # If it's a search result query block
+                if not data['entries']:
+                    return await m.edit(content="❌ No entries found.")
+                info = data['entries'][0]
+            else:
+                # If it's a direct YouTube video URL link
+                info = data
+                
         except Exception as e:
-            return await m.edit(content=f"{self.cross} YouTube Error: `Bot Detection/IP Block`")
+            print(f"YT-DLP Critical Error: {e}")
+            return await m.edit(content=f"{self.cross} YouTube Error: `IP Blocked or Bot Detected`. Try generic song names instead of direct links!")
 
         # 5. Play Logic
         if ctx.voice_client.is_playing() or ctx.voice_client.is_paused():
@@ -127,3 +149,4 @@ class Music(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(Music(bot))
+            

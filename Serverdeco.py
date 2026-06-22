@@ -27,12 +27,20 @@ class ServerDeco(commands.Cog):
 
         return None
 
-    # Helper function: Downloads the image from the URL and returns bytes
+    # ⬇️ UPDATED HELPER: Added User-Agent & Content-Type validation to bypass Cloudflare
     async def download_image(self, url):
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
         async with aiohttp.ClientSession() as session:
-            async with session.get(url) as resp:
-                if resp.status == 200:
-                    return await resp.read()
+            try:
+                async with session.get(url, headers=headers, timeout=10) as resp:
+                    if resp.status == 200:
+                        # Verify that the resource is actually an image and not a Cloudflare HTML error page
+                        if "image" in resp.headers.get("Content-Type", ""):
+                            return await resp.read()
+            except Exception:
+                return None
         return None
 
     # --- COMMANDS FOR SERVER ---
@@ -53,7 +61,7 @@ class ServerDeco(commands.Cog):
                 await ctx.guild.edit(icon=image_bytes)
                 await ctx.send("✅ Server icon has been successfully updated!")
             else:
-                await ctx.send("❌ Failed to download the image. Please verify the link.")
+                await ctx.send("❌ Failed to download the image. Please verify the link and ensure it is a valid image file.")
         except discord.Forbidden:
             await ctx.send("❌ I do not have permission to change the server icon.")
         except Exception as e:
@@ -75,7 +83,7 @@ class ServerDeco(commands.Cog):
                 await ctx.guild.edit(banner=image_bytes)
                 await ctx.send("✅ Server banner has been successfully updated!")
             else:
-                await ctx.send("❌ Failed to download the image. Please verify the link.")
+                await ctx.send("❌ Failed to download the image. Please verify the link and ensure it is a valid image file.")
         except discord.Forbidden:
             await ctx.send("❌ I do not have permission to change the banner, or the server lacks the required Boost level.")
         except Exception as e:
@@ -100,7 +108,7 @@ class ServerDeco(commands.Cog):
                 await self.bot.user.edit(avatar=image_bytes)
                 await ctx.send("✅ Bot avatar has been successfully updated!")
             else:
-                await ctx.send("❌ Failed to download the image. Please verify the link.")
+                await ctx.send("❌ Failed to download the image. Please verify the link and ensure it is a valid image file.")
         except discord.HTTPException as e:
             await ctx.send(f"❌ Discord API Error (You may be changing avatars too fast): `{e}`")
         except Exception as e:

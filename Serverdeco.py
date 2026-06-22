@@ -6,28 +6,28 @@ class ServerDeco(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    # Helper function: Jo image ka URL dhoondhegi (Reply, Attachment, ya Direct Link se)
+    # Helper function: Finds the image URL (from Reply, Attachment, or Direct Link)
     async def get_image_url(self, ctx, argument: str = None):
-        # 1. Agar kisi message par REPLY kiya gaya hai
+        # 1. If the message is a REPLY to another message
         if ctx.message.reference:
             replied_msg = await ctx.channel.fetch_message(ctx.message.reference.message_id)
             if replied_msg.attachments:
                 return replied_msg.attachments[0].url
-            # Agar reply wale message mein koi link ho
+            # If the replied message contains a plain URL link
             elif replied_msg.content.startswith("http"):
                 return replied_msg.content.strip()
 
-        # 2. Agar command ke saath file UPLOAD ki gayi hai
+        # 2. If a file is UPLOADED directly alongside the command
         if ctx.message.attachments:
             return ctx.message.attachments[0].url
 
-        # 3. Agar command ke saath text mein LINK diya gaya hai
+        # 3. If a text LINK/URL is provided as an argument
         if argument and argument.startswith("http"):
             return argument.strip()
 
         return None
 
-    # Helper function: URL se image download karke bytes mein badalne ke liye
+    # Helper function: Downloads the image from the URL and returns bytes
     async def download_image(self, url):
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as resp:
@@ -40,73 +40,73 @@ class ServerDeco(commands.Cog):
     @commands.command(name="setservericon")
     @commands.has_permissions(manage_guild=True)
     async def set_server_icon(self, ctx, *, link: str = None):
-        """Server ka icon badle (Reply, Upload, ya Link se)"""
+        """Change the server icon (via Reply, Upload, or Link)"""
         await ctx.typing()
         url = await self.get_image_url(ctx, link)
 
         if not url:
-            return await ctx.send("❌ Please kisi image par reply karein, file upload karein, ya image ka link dein!")
+            return await ctx.send("❌ Please reply to an image, upload a file, or provide a direct image link!")
 
         try:
             image_bytes = await self.download_image(url)
             if image_bytes:
                 await ctx.guild.edit(icon=image_bytes)
-                await ctx.send("✅ Server icon successfully change ho gaya hai!")
+                await ctx.send("✅ Server icon has been successfully updated!")
             else:
-                await ctx.send("❌ Image download karne mein dikkat aayi.")
+                await ctx.send("❌ Failed to download the image. Please verify the link.")
         except discord.Forbidden:
-            await ctx.send("❌ Mere paas server icon change karne ki permission nahi hai.")
+            await ctx.send("❌ I do not have permission to change the server icon.")
         except Exception as e:
-            await ctx.send(f"❌ Ek error aayi: `{e}`")
+            await ctx.send(f"❌ An error occurred: `{e}`")
 
     @commands.command(name="setserverbanner")
     @commands.has_permissions(manage_guild=True)
     async def set_server_banner(self, ctx, *, link: str = None):
-        """Server ka banner badle (Reply, Upload, ya Link se) - Needs Server Boost"""
+        """Change the server banner (via Reply, Upload, or Link) - Requires Server Boosting"""
         await ctx.typing()
         url = await self.get_image_url(ctx, link)
 
         if not url:
-            return await ctx.send("❌ Please kisi image par reply karein, file upload karein, ya image ka link dein!")
+            return await ctx.send("❌ Please reply to an image, upload a file, or provide a direct image link!")
 
         try:
             image_bytes = await self.download_image(url)
             if image_bytes:
                 await ctx.guild.edit(banner=image_bytes)
-                await ctx.send("✅ Server banner successfully change ho gaya hai!")
+                await ctx.send("✅ Server banner has been successfully updated!")
             else:
-                await ctx.send("❌ Image download karne mein dikkat aayi.")
+                await ctx.send("❌ Failed to download the image. Please verify the link.")
         except discord.Forbidden:
-            await ctx.send("❌ Mere paas banner change karne ki permission nahi hai ya server boosted nahi hai.")
+            await ctx.send("❌ I do not have permission to change the banner, or the server lacks the required Boost level.")
         except Exception as e:
-            await ctx.send(f"❌ Ek error aayi: `{e}`")
+            await ctx.send(f"❌ An error occurred: `{e}`")
 
 
     # --- COMMANDS FOR BOT ---
 
     @commands.command(name="setboticon")
-    @commands.is_owner() # Bot ka icon sirf bot owner badal sake
+    @commands.is_owner() # Ensures only the bot developer/owner can alter the bot's look
     async def set_bot_icon(self, ctx, *, link: str = None):
-        """Bot ka avatar/icon badle (Reply, Upload, ya Link se)"""
+        """Change the bot's avatar/icon (via Reply, Upload, or Link)"""
         await ctx.typing()
         url = await self.get_image_url(ctx, link)
 
         if not url:
-            return await ctx.send("❌ Please kisi image par reply karein, file upload karein, ya image ka link dein!")
+            return await ctx.send("❌ Please reply to an image, upload a file, or provide a direct image link!")
 
         try:
             image_bytes = await self.download_image(url)
             if image_bytes:
                 await self.bot.user.edit(avatar=image_bytes)
-                await ctx.send("✅ Bot ka avatar/icon successfully change ho gaya hai!")
+                await ctx.send("✅ Bot avatar has been successfully updated!")
             else:
-                await ctx.send("❌ Image download karne mein dikkat aayi.")
+                await ctx.send("❌ Failed to download the image. Please verify the link.")
         except discord.HTTPException as e:
-            await ctx.send(f"❌ Discord error (Shayad aap bahut jaldi-jaldi change kar rahe hain): `{e}`")
+            await ctx.send(f"❌ Discord API Error (You may be changing avatars too fast): `{e}`")
         except Exception as e:
-            await ctx.send(f"❌ Ek error aayi: `{e}`")
+            await ctx.send(f"❌ An error occurred: `{e}`")
 
-# Setup function cog ko register karne ke liye
+# Setup function to register the cog
 async def setup(bot):
     await bot.add_cog(ServerDeco(bot))
-  
+    

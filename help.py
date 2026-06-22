@@ -63,8 +63,7 @@ class HelpDropdown(discord.ui.Select):
             embed.title = f"{E_SUPREME} Starla Utility Perks"
             embed.description = (
                 f"{E_BUTTERFLY} *Handy commands for everyday fun!* {E_GUAVA}\n"
-                f"
-```\n"
+                f"```\n"
                 f"{p}afk    : Set AFK status\n"
                 f"{p}say    : Bot message\n"
                 f"{p}dm     : DM a user\n"
@@ -77,8 +76,7 @@ class HelpDropdown(discord.ui.Select):
             embed.title = f"{E_MOD} Starla Management Dashboard"
             embed.description = (
                 f"{E_VERIFIED} *Configure and tune up your server rules!* {E_HEART}\n"
-                f"
-```\n"
+                f"```\n"
                 f"{p}setprefix : Change prefix\n"
                 f"{p}role add   : Give role\n"
                 f"{p}role rem   : Remove role\n"
@@ -158,4 +156,3 @@ class Help(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(Help(bot))
-    

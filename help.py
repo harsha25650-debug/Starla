@@ -4,28 +4,29 @@ from discord import app_commands
 import json
 import os
 
-# --- 🎭 CUSTOM EMOJIS ---
-E_NOM = "<:bs_nom:1494179666133516411>"
-E_BUTTERFLY = "<:lyf_butterfly_black:1494179666133516411>"
+# --- 🎭 CUSTOM EMOJIS (Aapke provided verified IDs ke sath) ---
+E_NOM = "<a:bs_nom:1443239762197745790>"
+E_BUTTERFLY = "<a:lyf_butterfly_black:1515672700415246346>"
 E_DOT = "<a:spider_red_dot:1494179666133516411>"
-E_SUPREME = "<:trick_supreme:1494179666133516411>"
-E_GUAVA = "<:Guava:1494179666133516411>"
-E_HEART = "<:HEART:1494179666133516411>"
-E_HEART3 = "<:Heart3:1494179666133516411>"
-E_MOD = "<:Moderator:1494179666133516411>"
-E_SWORD = "<:bd_sword:1494179666133516411>"
-E_VERIFIED = "<:verified:1494179666133516411>"
-E_ROSE = "<:bd_rose:1494179666133516411>"
+E_SUPREME = "<:trick_supreme:1433737084363083869>"
+E_GUAVA = "<a:Guava:1514950622586077354>"
+E_HEART = "<a:HEART:1438571571915522208>"
+E_HEART3 = "<a:Heart3:1434556967556350004>"
+E_MOD = "<:Moderator:1433718499791994892>"
+E_SWORD = "<:bd_sword:1495476833720729836>"
+E_VERIFIED = "<a:verified:1434044320830459935>"
+E_ROSE = "<:bd_rose:1510988383332204735>"
 
 class HelpDropdown(discord.ui.Select):
     def __init__(self, bot, guild_prefix):
         self.bot = bot
         self.prefix = guild_prefix
 
+        # Dropdown options with custom emoji integrations
         options = [
-            discord.SelectOption(label="Moderation", description="Safety & protection commands", emoji="⚔️"),
-            discord.SelectOption(label="Utility", description="General usage & info", emoji="⚙️"),
-            discord.SelectOption(label="Management", description="Server settings & role control", emoji="🛡️"),
+            discord.SelectOption(label="Moderation", description="Safety & protection commands", emoji=E_SWORD),
+            discord.SelectOption(label="Utility", description="General usage & info", emoji=E_SUPREME),
+            discord.SelectOption(label="Management", description="Server settings & role control", emoji=E_MOD),
             discord.SelectOption(label="Home", description="Return to main page", emoji="🏠"),
         ]
 

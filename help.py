@@ -4,9 +4,7 @@ from discord import app_commands
 import json
 import os
 
-# --- 🎭 CUSTOM EMOJIS (Aapke provided names ke hisab se) ---
-# Note: Agar ye custom emojis hain, toh Discord par `<:name:id>` ya `<a:name:id>` format lagta hai.
-# Maine yahan plain text likha hai, aap chahein toh actual IDs se replace kar sakte hain.
+# --- 🎭 CUSTOM EMOJIS ---
 E_NOM = "<:bs_nom:1494179666133516411>"
 E_BUTTERFLY = "<:lyf_butterfly_black:1494179666133516411>"
 E_DOT = "<a:spider_red_dot:1494179666133516411>"
@@ -24,11 +22,10 @@ class HelpDropdown(discord.ui.Select):
         self.bot = bot
         self.prefix = guild_prefix
 
-        # Dropdown options with custom emoji logic
         options = [
-            discord.SelectOption(label="Moderation", description="Safety & protection commands", emoji="⚔️"), # bd_sword match
+            discord.SelectOption(label="Moderation", description="Safety & protection commands", emoji="⚔️"),
             discord.SelectOption(label="Utility", description="General usage & info", emoji="⚙️"),
-            discord.SelectOption(label="Management", description="Server settings & role control", emoji="🛡️"), # Moderator match
+            discord.SelectOption(label="Management", description="Server settings & role control", emoji="🛡️"),
             discord.SelectOption(label="Home", description="Return to main page", emoji="🏠"),
         ]
 
@@ -40,7 +37,6 @@ class HelpDropdown(discord.ui.Select):
         )
 
     async def callback(self, interaction: discord.Interaction):
-        # Cute pinkish-purple color theme
         embed = discord.Embed(color=0xffb6c1)
         p = self.prefix
 
@@ -60,35 +56,34 @@ class HelpDropdown(discord.ui.Select):
                 f"{p}mute   : Timeout a member\n"
                 f"{p}unmute : Remove timeout\n"
                 f"{p}clear  : Delete messages\n"
-                f"
-```"
+                f"```"
             )
 
         elif self.values[0] == "Utility":
             embed.title = f"{E_SUPREME} Starla Utility Perks"
             embed.description = (
                 f"{E_BUTTERFLY} *Handy commands for everyday fun!* {E_GUAVA}\n"
-                f"```\n"
+                f"
+```\n"
                 f"{p}afk    : Set AFK status\n"
                 f"{p}say    : Bot message\n"
                 f"{p}dm     : DM a user\n"
                 f"{p}ping   : Check latency\n"
                 f"{p}help   : Open help panel\n"
-                f"
-```"
+                f"```"
             )
 
         elif self.values[0] == "Management":
             embed.title = f"{E_MOD} Starla Management Dashboard"
             embed.description = (
                 f"{E_VERIFIED} *Configure and tune up your server rules!* {E_HEART}\n"
-                f"```\n"
+                f"
+```\n"
                 f"{p}setprefix : Change prefix\n"
                 f"{p}role add   : Give role\n"
                 f"{p}role rem   : Remove role\n"
                 f"{p}case       : Moderation logs\n"
-                f"
-```"
+                f"```"
             )
 
         else:
@@ -151,7 +146,7 @@ class Help(commands.Cog):
             inline=False
         )
 
-        embed.set_footer(text=f"Starla Cutie System • Built with {E_HEART}")
+        embed.set_footer(text=f"Starla Cute System • Built with {E_HEART}")
 
         view = HelpView(self.bot, p, embed)
 
@@ -163,4 +158,4 @@ class Help(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(Help(bot))
-        
+    

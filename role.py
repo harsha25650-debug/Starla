@@ -24,9 +24,9 @@ class Role(commands.Cog):
         )
         return embed
 
-    # 🖼️ HELPER: Image URL ya Emoji nikalne ke liye
+    # 🖼️ HELPER: Extract Image URL or Emoji
     async def get_image_or_emoji(self, ctx, argument: str = None):
-        # 1. Agar kisi message par REPLY kiya gaya hai
+        # 1. If the command is a REPLY to a message
         if ctx.message.reference:
             replied_msg = await ctx.channel.fetch_message(ctx.message.reference.message_id)
             if replied_msg.attachments:
@@ -34,11 +34,11 @@ class Role(commands.Cog):
             elif replied_msg.content.startswith("http"):
                 return "url", replied_msg.content.strip()
 
-        # 2. Agar command ke saath file UPLOAD ki gayi hai
+        # 2. If a file is UPLOADED with the command
         if ctx.message.attachments:
             return "url", ctx.message.attachments[0].url
 
-        # 3. Agar command ke saath text (Link ya Emoji) diya gaya hai
+        # 3. If a text argument (Link or Emoji) is provided
         if argument:
             argument = argument.strip()
             if argument.startswith("http"):
@@ -48,7 +48,7 @@ class Role(commands.Cog):
 
         return None, None
 
-    # ⬇️ HELPER: URL se image download karne ke liye
+    # ⬇️ HELPER: Download image data from a URL
     async def download_image(self, url):
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as resp:
@@ -57,7 +57,7 @@ class Role(commands.Cog):
         return None
 
     # 🔁 ROLE TOGGLE (EMBED VERSION)
-    @commands.hybrid_command(name="role", description="Add or remove a role")
+    @commands.hybrid_command(name="role", description="Add or remove a role from a member")
     @app_commands.describe(member="Target user", role="Select role")
     @has_perm_or_owner()
     async def role(self, ctx, member: discord.Member, role: discord.Role):
@@ -66,7 +66,7 @@ class Role(commands.Cog):
         if not ctx.guild.me.guild_permissions.manage_roles:
             embed = self.create_embed(
                 "⛔ Permission Missing",
-                "I need **Manage Roles** permission.",
+                "I need the **Manage Roles** permission to perform this action.",
                 discord.Color.red()
             )
             return await ctx.send(embed=embed)
@@ -75,7 +75,7 @@ class Role(commands.Cog):
         if role >= ctx.guild.me.top_role:
             embed = self.create_embed(
                 "⛔ Role Hierarchy Error",
-                "This role is higher than my role.",
+                "This role is positioned higher than my highest role.",
                 discord.Color.red()
             )
             return await ctx.send(embed=embed)
@@ -83,7 +83,7 @@ class Role(commands.Cog):
         if member.top_role >= ctx.guild.me.top_role:
             embed = self.create_embed(
                 "⛔ Cannot Modify User",
-                "This user has higher or equal role than me.",
+                "This user has a higher or equal role hierarchy than me.",
                 discord.Color.red()
             )
             return await ctx.send(embed=embed)
@@ -95,7 +95,7 @@ class Role(commands.Cog):
 
                 embed = self.create_embed(
                     "❌ Role Removed",
-                    f"{member.mention} se `{role.name}` remove kar diya gaya.",
+                    f"Successfully removed `{role.name}` from {member.mention}.",
                     discord.Color.red()
                 )
 
@@ -104,17 +104,17 @@ class Role(commands.Cog):
 
                 embed = self.create_embed(
                     "✅ Role Added",
-                    f"{member.mention} ko `{role.name}` de diya gaya.",
+                    f"Successfully granted `{role.name}` to {member.mention}.",
                     discord.Color.green()
                 )
 
-            embed.set_footer(text=f"Action by {ctx.author}", icon_url=ctx.author.display_avatar.url)
+            embed.set_footer(text=f"Action executed by {ctx.author}", icon_url=ctx.author.display_avatar.url)
             await ctx.send(embed=embed)
 
         except discord.Forbidden:
             embed = self.create_embed(
                 "⛔ Permission Error",
-                "Role assign/remove nahi kar pa raha (hierarchy issue).",
+                "Unable to modify roles due to a hierarchy restriction.",
                 discord.Color.red()
             )
             await ctx.send(embed=embed)
@@ -122,13 +122,13 @@ class Role(commands.Cog):
         except Exception as e:
             embed = self.create_embed(
                 "⚠️ Unexpected Error",
-                f"{e}",
+                f"An unexpected error occurred: `{e}`",
                 discord.Color.orange()
             )
             await ctx.send(embed=embed)
 
     # 🎭 ROLE ICON (UPGRADED VERSION)
-    @commands.hybrid_command(name="roleicon", description="Set role icon via Image, Link, Reply or Emoji")
+    @commands.hybrid_command(name="roleicon", description="Set a role icon via Image, Link, Reply, or Emoji")
     @app_commands.describe(role="Target role", input_data="Emoji or Image Link (Optional if replying/uploading)")
     @has_perm_or_owner()
     async def roleicon(self, ctx, role: discord.Role, *, input_data: str = None):
@@ -136,61 +136,61 @@ class Role(commands.Cog):
 
         # 🚨 ROLE POSITION CHECK
         if role >= ctx.guild.me.top_role:
-            return await ctx.send("⛔ This role is higher than my role.")
+            return await ctx.send("⛔ This role is positioned higher than my highest role.")
 
-        # Data type aur source check karein
+        # Determine data type and source path
         data_type, source = await self.get_image_or_emoji(ctx, input_data)
 
         if not data_type:
-            return await ctx.send("❌ Please kisi image par reply karein, file upload karein, link dein, ya koi emoji use karein!")
+            return await ctx.send("❌ Please reply to an image, upload a file, provide a direct link, or use an emoji!")
 
         try:
-            # --- AGAR IMAGE/LINK HAI ---
+            # --- IF INPUT IS AN IMAGE / LINK ---
             if data_type == "url":
                 image_bytes = await self.download_image(source)
                 if image_bytes:
                     await role.edit(display_icon=image_bytes)
                 else:
-                    return await ctx.send("❌ Image download karne mein dikkat aayi.")
+                    return await ctx.send("❌ Failed to download the image. Please verify the link.")
 
-            # --- AGAR UNICODE YA CUSTOM EMOJI HAI ---
+            # --- IF INPUT IS A UNICODE OR CUSTOM EMOJI ---
             elif data_type == "emoji":
-                if len(source) <= 4:  # Unicode Emoji (e.g., ⭐)
+                if len(source) <= 4:  # Standard Unicode Emoji (e.g., ⭐)
                     await role.edit(display_icon=source.encode("utf-8"))
 
-                elif source.startswith("<:") or source.startswith("<a:"):  # Custom Guild Emoji
+                elif source.startswith("<:") or source.startswith("<a:"):  # Custom Server Emoji
                     emoji_id = int(source.split(":")[2][:-1])
                     guild_emoji = discord.utils.get(ctx.guild.emojis, id=emoji_id)
 
                     if guild_emoji is None:
-                        return await ctx.send("❌ Yeh emoji is server mein nahi mila.")
+                        return await ctx.send("❌ This emoji was not found in this server.")
 
                     await role.edit(display_icon=await guild_emoji.read())
                 else:
-                    return await ctx.send("❌ Invalid emoji ya format.")
+                    return await ctx.send("❌ Invalid emoji format or input data.")
 
-            # Success Embed
+            # Success Embed Response
             embed = self.create_embed(
                 "✨ Role Icon Updated",
-                f"{role.mention} ka icon successfully update ho gaya hai.",
+                f"The display icon for {role.mention} has been successfully updated.",
                 discord.Color.purple()
             )
             await ctx.send(embed=embed)
 
         except discord.Forbidden:
-            await ctx.send("❌ Mere paas roles manage karne ki permission nahi hai.")
+            await ctx.send("❌ I do not have permissions to manage roles, or this server lacks the required Boost level.")
         except Exception as e:
-            await ctx.send(f"⚠️ Failed to update role icon. Error: `{e}`")
+            await ctx.send(f"⚠️ Failed to update the role icon. Error: `{e}`")
 
     # ❗ ERROR HANDLER
     @role.error
     @roleicon.error
     async def role_error(self, ctx, error):
         if isinstance(error, commands.CheckFailure):
-            await ctx.send("❌ You don't have permission.")
+            await ctx.send("❌ You do not have the required permissions to use this command.")
         else:
-            await ctx.send("⚠️ Error occurred.")
+            await ctx.send("⚠️ An error occurred while processing the command.")
 
 async def setup(bot):
     await bot.add_cog(Role(bot))
-            
+    

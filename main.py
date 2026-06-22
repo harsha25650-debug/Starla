@@ -21,7 +21,7 @@ def run_health_server():
         def do_GET(self):
             self.send_response(200)
             self.end_headers()
-            self.wfile.write(b"NovaX Alive")
+            self.wfile.write(b"Starla Alive")
         def log_message(self, format, *args): 
             return # Keeps terminal logs clean
             
@@ -57,7 +57,7 @@ def get_prefix(bot, message):
     return "!"
 
 # --- 🤖 BOT CLASS ---
-class NovaX(commands.Bot):
+class Starla(commands.Bot):
     def __init__(self):
         intents = discord.Intents.all()
         super().__init__(
@@ -93,7 +93,7 @@ class NovaX(commands.Bot):
 
     async def on_ready(self):
         print(f"---")
-        print(f"✅ {self.user.name} is Online & Fully Overloaded!")
+        print(f"✅ {self.user.name} is Online & Fully Overloaded! 💞")
         print(f"---")
         if not self.update_status.is_running():
             self.update_status.start()
@@ -106,8 +106,8 @@ class NovaX(commands.Bot):
 
     @tasks.loop(minutes=5)
     async def update_status(self):
-        status_text = f"NovaX v11 | {len(self.guilds)} Servers"
-        await self.change_presence(activity=Streaming(name=status_text, url="https://twitch.tv/novax_bot"))
+        status_text = f"Starla Cutie 🎀 | {len(self.guilds)} Servers"
+        await self.change_presence(activity=Streaming(name=status_text, url="https://twitch.tv/starla_bot"))
 
     # --- 💬 CLEAN MENTION HANDLER ---
     async def on_message(self, message):
@@ -122,7 +122,7 @@ class NovaX(commands.Bot):
             
             # 1️⃣ Who is Harsh?
             if "harsh" in content:
-                await message.reply("**Harsh** is my boss, developer, and the absolute mastermind behind NovaX v11! 😎👑")
+                await message.reply("**Harsh** is my boss, developer, and the absolute mastermind behind Starla! 😎👑")
                 return
                 
             # 2️⃣ Owner / Creator Info
@@ -133,15 +133,14 @@ class NovaX(commands.Bot):
             # 3️⃣ Just a plain @mention with no specific keywords (Intro Fallback)
             elif content == "":
                 current_prefix = self.command_prefix(self, message)
-                await message.reply(f"Hello! I am **NovaX v11**, a powerful community bot built by **Harsh**! 🎀 My prefix here is `{current_prefix}`. Type `{current_prefix}help` to view my commands! ✨")
+                await message.reply(f"Hello! I am **Starla** 🎀, a powerful and cute community bot built by **Harsh**! My prefix here is `{current_prefix}`. Type `{current_prefix}help` to view my commands! ✨")
                 return
 
         await self.process_commands(message)
 
 if __name__ == "__main__":
-    bot = NovaX()
+    bot = Starla()
     
-    # 🔥 FIXED: Ping command ko bot instance create hone ke BAAD link kiya hai
     @bot.command(name="ping")
     async def ping(ctx):
         loading_emoji = "<a:spider_red_dot:1494179666133516411>"
@@ -159,7 +158,7 @@ if __name__ == "__main__":
         )
         embed.add_field(name="🌐 WebSocket Latency", value=f"`{websocket_latency}ms`", inline=True)
         embed.add_field(name="⚡ REST API Latency", value=f"`{rest_latency}ms`", inline=True)
-        embed.set_footer(text="NovaX v11 • Performance Stable")
+        embed.set_footer(text="Starla • Performance Stable")
         
         await msg.edit(content=None, embed=embed)
 
@@ -168,4 +167,4 @@ if __name__ == "__main__":
         bot.run(token)
     else:
         print("❌ Error: TOKEN environment variable nahi mila!")
-        
+                    

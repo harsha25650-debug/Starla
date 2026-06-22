@@ -4,7 +4,7 @@ from discord import app_commands
 import json
 import os
 
-# --- 🎭 CUSTOM EMOJIS (Aapke provided verified IDs ke sath) ---
+# --- 🎭 CUSTOM EMOJIS ---
 E_NOM = "<a:bs_nom:1443239762197745790>"
 E_BUTTERFLY = "<a:lyf_butterfly_black:1515672700415246346>"
 E_DOT = "<a:spider_red_dot:1494179666133516411>"
@@ -17,12 +17,16 @@ E_SWORD = "<:bd_sword:1495476833720729836>"
 E_VERIFIED = "<a:verified:1434044320830459935>"
 E_ROSE = "<:bd_rose:1510988383332204735>"
 
+# --- 🖼️ DEFAULT BANNER URL ---
+# Agar bot ka custom banner set nahi hai, toh ye cute animation banner display hoga!
+# Aap is link ko kisi bhi image/gif link se badal sakte hain.
+DEFAULT_BANNER_URL = "https://i.imgur.com/k9b8fU6.gif"
+
 class HelpDropdown(discord.ui.Select):
     def __init__(self, bot, guild_prefix):
         self.bot = bot
         self.prefix = guild_prefix
 
-        # Dropdown options with custom emoji integrations
         options = [
             discord.SelectOption(label="Moderation", description="Safety & protection commands", emoji=E_SWORD),
             discord.SelectOption(label="Utility", description="General usage & info", emoji=E_SUPREME),
@@ -43,8 +47,16 @@ class HelpDropdown(discord.ui.Select):
 
         if self.bot.user.avatar:
             embed.set_thumbnail(url=self.bot.user.avatar.url)
-        if self.bot.user.banner:
-            embed.set_image(url=self.bot.user.banner.url)
+        
+        # Banner Fetch Logic
+        banner_url = DEFAULT_BANNER_URL
+        try:
+            bot_user = await self.bot.fetch_user(self.bot.user.id)
+            if bot_user.banner:
+                banner_url = bot_user.banner.url
+        except Exception:
+            pass
+        embed.set_image(url=banner_url)
 
         if self.values[0] == "Moderation":
             embed.title = f"{E_SWORD} Starla Moderation System"
@@ -132,8 +144,16 @@ class Help(commands.Cog):
 
         if self.bot.user.avatar:
             embed.set_thumbnail(url=self.bot.user.avatar.url)
-        if self.bot.user.banner:
-            embed.set_image(url=self.bot.user.banner.url)
+        
+        # Banner Fetch Logic
+        banner_url = DEFAULT_BANNER_URL
+        try:
+            bot_user = await self.bot.fetch_user(self.bot.user.id)
+            if bot_user.banner:
+                banner_url = bot_user.banner.url
+        except Exception:
+            pass
+        embed.set_image(url=banner_url)
 
         embed.add_field(name=f"{E_SWORD} Moderation", value="`ban`, `kick`, `mute`, `clear`", inline=True)
         embed.add_field(name=f"{E_SUPREME} Utility", value="`afk`, `say`, `dm`, `ping`", inline=True)

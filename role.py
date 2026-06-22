@@ -48,12 +48,20 @@ class Role(commands.Cog):
 
         return None, None
 
-    # ⬇️ HELPER: Download image data from a URL
+    # ⬇️ UPDATED HELPER: Added User-Agent & Content-Type validation to bypass Cloudflare
     async def download_image(self, url):
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
         async with aiohttp.ClientSession() as session:
-            async with session.get(url) as resp:
-                if resp.status == 200:
-                    return await resp.read()
+            try:
+                async with session.get(url, headers=headers, timeout=10) as resp:
+                    if resp.status == 200:
+                        # Verify that the resource is actually an image and not a Cloudflare HTML block page
+                        if "image" in resp.headers.get("Content-Type", ""):
+                            return await resp.read()
+            except Exception:
+                return None
         return None
 
     # 🔁 ROLE TOGGLE (EMBED VERSION)
@@ -151,7 +159,7 @@ class Role(commands.Cog):
                 if image_bytes:
                     await role.edit(display_icon=image_bytes)
                 else:
-                    return await ctx.send("❌ Failed to download the image. Please verify the link.")
+                    return await ctx.send("❌ Failed to download the image. Please verify the link and ensure it points to a valid image.")
 
             # --- IF INPUT IS A UNICODE OR CUSTOM EMOJI ---
             elif data_type == "emoji":
@@ -193,4 +201,4 @@ class Role(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(Role(bot))
-    
+            

@@ -4,7 +4,7 @@ from discord import app_commands
 import asyncio
 import re
 
-# --- 🎭 CUSTOM EMOJIS (Aapke provided IDs ke sath) ---
+# --- 🎭 CUSTOM EMOJIS ---
 E_NOM = "<a:bs_nom:1443239762197745790>"
 E_BUTTERFLY = "<a:lyf_butterfly_black:1515672700415246346>"
 E_DOT = "<a:spider_red_dot:1494179666133516411>"
@@ -21,8 +21,8 @@ E_GREENTICK = "<a:greentick:1494180392440303777>"
 class MassPing(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.active = {}         # Single-massping track karne ke liye (Channel ID -> Boolean)
-        self.active_tasks = {}   # Multi-loop track karne ke liye ((channel_id, target_id) -> asyncio.Task)
+        self.active = {}         # Tracks fast sequential masspings (Channel ID -> Boolean)
+        self.active_tasks = {}   # Tracks multi-target loops ((channel_id, target_id) -> asyncio.Task)
 
     # =========================
     # 🕒 TIME PARSER FUNCTION
@@ -30,7 +30,7 @@ class MassPing(commands.Cog):
     def parse_time(self, time_str: str) -> int:
         match = re.match(r"(\d+)\s*(s|sec|second|seconds|m|min|minute|minutes|h|hour|hours)", time_str.lower())
         if not match:
-            raise ValueError("Format galat hai bestie! Sahi format: `1m`, `5min`, `1h`, `1hour` etc.")
+            raise ValueError("Invalid time format. Use something like `1m`, `5min`, `1h`, `1hour`.")
         
         value = int(match.group(1))
         unit = match.group(2)
@@ -42,7 +42,7 @@ class MassPing(commands.Cog):
         elif unit in ["h", "hour", "hours"]:
             return value * 3600
         else:
-            raise ValueError("Invalid unit!")
+            raise ValueError("Invalid unit detected.")
 
     # =========================
     # 🔑 ACCESS SYSTEM
@@ -75,39 +75,39 @@ class MassPing(commands.Cog):
     # =========================
     # 🔑 ACCESS COMMANDS
     # =========================
-    @commands.hybrid_command(name="mpaccess", description="Give a user permissions to use massping.")
-    @app_commands.describe(member="The user who will get permissions")
+    @commands.hybrid_command(name="mpaccess", description="Grants a user authorization to run massping operations.")
+    @app_commands.describe(member="The user to authorize")
     async def mpaccess(self, ctx, member: discord.User):
         if not await self.bot.is_owner(ctx.author):
-            return await ctx.reply(f"{E_DOT} Only owner allowed.")
+            return await ctx.reply(f"{E_DOT} Access denied. Authorized personnel only.")
         self.add_global_access(member.id)
-        await ctx.reply(f"{E_GREENTICK} {member.name} given access.")
+        await ctx.reply(f"{E_GREENTICK} Authorization granted to {member.name}.")
 
-    @commands.hybrid_command(name="mpremove", description="Remove access from a user.")
-    @app_commands.describe(member="The user whose access you want to remove")
+    @commands.hybrid_command(name="mpremove", description="Revokes massping authorization from a user.")
+    @app_commands.describe(member="The user to deauthorize")
     async def mpremove(self, ctx, member: discord.User):
         if not await self.bot.is_owner(ctx.author):
-            return await ctx.reply(f"{E_DOT} Access denied.")
+            return await ctx.reply(f"{E_DOT} Access denied. Authorization failed.")
         self.remove_global_access(member.id)
-        await ctx.reply(f"{E_DOT} Removed access from {member.name}.")
+        await ctx.reply(f"{E_DOT} Authorization revoked for {member.name}.")
 
     # =========================
     # 🚀 MASSPING (FAST SINGLE)
     # =========================
-    @commands.hybrid_command(name="massping", description="Fast sequential pings in a channel.")
-    @app_commands.describe(member="Who to ping", amount="How many times (max 200)")
+    @commands.hybrid_command(name="massping", description="Launches high-velocity sequential pings on a target.")
+    @app_commands.describe(member="Target to bombard", amount="Total ping count (max 200)")
     async def massping(self, ctx, member: discord.User, amount: int):
         if not await self.check_permissions(ctx):
-            return await ctx.reply(f"{E_DOT} Access denied.")
+            return await ctx.reply(f"{E_DOT} Unauthorized. Access denied.")
 
         amount = min(amount, 200)
         channel_id = ctx.channel.id
         
         if self.active.get(channel_id):
-            return await ctx.reply("⚠️ Already running here.")
+            return await ctx.reply("⚠️ An active operation is already running in this channel.")
 
         self.active[channel_id] = True
-        await ctx.reply(f"{E_DOT} Starting fast ping...")
+        await ctx.reply(f"{E_DOT} Initiating target saturation...")
 
         sent = 0
         while sent < amount:
@@ -117,7 +117,7 @@ class MassPing(commands.Cog):
             try:
                 await ctx.send(member.mention)
                 sent += 1
-                await asyncio.sleep(0.8) # ⚡ fastest safe delay
+                await asyncio.sleep(0.8)  # Optimal delay to prevent API bottleneck
             except discord.HTTPException as e:
                 if e.status == 429:
                     retry = getattr(e, "retry_after", 5)
@@ -128,13 +128,13 @@ class MassPing(commands.Cog):
                 break
 
         self.active[channel_id] = False
-        await ctx.send(f"{E_GREENTICK} Mass ping completed.")
+        await ctx.send(f"{E_GREENTICK} Target saturation completed successfully.")
 
     # =========================
-    # 👻 GHOSTPING (SILENT)
+    # 👻 GHOSTPING (SILENT TROLL)
     # =========================
-    @commands.hybrid_command(name="ghostping", description="Silently ping a user by deleting pings immediately.")
-    @app_commands.describe(member="Target to ghostping", amount="How many times (max 100)")
+    @commands.hybrid_command(name="ghostping", description="Quietly spams notifications and deletes the traces.")
+    @app_commands.describe(member="Target to ghostping", amount="Spam cycle count (max 100)")
     async def ghostping(self, ctx, member: discord.User, amount: int):
         if not await self.check_permissions(ctx):
             if ctx.message:
@@ -148,9 +148,8 @@ class MassPing(commands.Cog):
         channel_id = ctx.channel.id
         self.active[channel_id] = True
 
-        # Slash interactions must get an ephemeral acknowledgement response, prefix messages are deleted.
         if ctx.interaction:
-            await ctx.interaction.response.send_message(f"👻 Ghostping started for {member.name}!", ephemeral=True)
+            await ctx.interaction.response.send_message(f"👻 Ghost protocol initiated on {member.name}.", ephemeral=True)
         elif ctx.message:
             try:
                 await ctx.message.delete()
@@ -183,11 +182,11 @@ class MassPing(commands.Cog):
     # =========================
     # ⚡ FAST BURST
     # =========================
-    @commands.hybrid_command(name="mpfast", description="Send a massive single message containing multiple mentions.")
-    @app_commands.describe(member="The target user", amount="Mentions count (max 80)")
+    @commands.hybrid_command(name="mpfast", description="Dispatches a massive block of mentions in a single transmission.")
+    @app_commands.describe(member="The target user", amount="Mentions payload (max 80)")
     async def mpfast(self, ctx, member: discord.User, amount: int):
         if not await self.check_permissions(ctx):
-            return await ctx.reply(f"{E_DOT} Access denied.", ephemeral=True)
+            return await ctx.reply(f"{E_DOT} Unauthorized. Access denied.", ephemeral=True)
 
         amount = min(amount, 80)
         msg = " ".join([member.mention] * amount)
@@ -196,13 +195,13 @@ class MassPing(commands.Cog):
     # =========================
     # 🛑 STOP SINGLE MASSPING
     # =========================
-    @commands.hybrid_command(name="mpstop", description="Stops sequential masspings/ghostpings in the channel.")
+    @commands.hybrid_command(name="mpstop", description="Kills active sequential massping/ghostping operations in the channel.")
     async def mpstop(self, ctx):
         if not await self.check_permissions(ctx):
-            return await ctx.reply(f"{E_DOT} Access denied.", ephemeral=True)
+            return await ctx.reply(f"{E_DOT} Unauthorized. Access denied.", ephemeral=True)
             
         self.active[ctx.channel.id] = False
-        await ctx.reply(f"{E_GREENTICK} Stopped sequential pings.")
+        await ctx.reply(f"{E_GREENTICK} Sequential ping sequence aborted.")
 
     # ==================================
     # 🎀 SUPERPINGS (LOOP TIME SCHEDULER)
@@ -211,71 +210,70 @@ class MassPing(commands.Cog):
         try:
             while True:
                 for _ in range(amount):
-                    await ctx.send(f"{member.mention} {E_HEART3} wake up cutie!")
-                    await asyncio.sleep(0.6) # Anti-rate-limit delay
+                    await ctx.send(f"{member.mention} {E_SWORD} Wake up. Cry about it.")
+                    await asyncio.sleep(0.6)
                 await asyncio.sleep(interval)
         except asyncio.CancelledError:
             pass
 
-    @commands.hybrid_command(name="superpings", description="Repeatedly pings a target member after specific intervals.")
+    @commands.hybrid_command(name="superpings", description="Locks onto a target and executes scheduled loop ping sequences.")
     @app_commands.describe(
-        member="Target to superping",
-        time_input="How often to ping (e.g., 5s, 1m, 1h, 10h)",
-        amount="Number of pings per cycle (max 50)"
+        member="Designated target",
+        time_input="Interval frequency (e.g., 5s, 1m, 1h, 10h)",
+        amount="Ping payload per loop (max 50)"
     )
     async def superpings(self, ctx, member: discord.User, time_input: str, amount: int):
         if not await self.check_permissions(ctx):
-            return await ctx.reply(f"{E_DOT} Access denied.")
+            return await ctx.reply(f"{E_DOT} Unauthorized. Access denied.")
 
         try:
             seconds = self.parse_time(time_input)
         except ValueError as e:
-            return await ctx.reply(f"{E_NOM} **Error:** {str(e)}")
+            return await ctx.reply(f"{E_NOM} **Configuration Error:** {str(e)}")
 
-        # Security checks to keep Bot Account safe
+        # Security checks to avoid platform limits
         if seconds < 10:
-            return await ctx.reply(f"{E_NOM} **Security Check:** Interval minimum 10 seconds hona chahiye bestie!")
+            return await ctx.reply(f"{E_NOM} **Security Protocol:** Minimum loop interval is capped at 10 seconds.")
         if amount > 50:
-            return await ctx.reply(f"{E_NOM} **Security Check:** Ek cycle mein max 50 pings hi ho sakte hain!")
+            return await ctx.reply(f"{E_NOM} **Security Protocol:** Maximum loop payload is capped at 50.")
 
         channel_id = ctx.channel.id
         task_key = (channel_id, member.id)
 
-        # Purana active loop cancel karega agar exist karega toh
+        # Cancel any active operations for this specific target in the channel
         if task_key in self.active_tasks:
             self.active_tasks[task_key].cancel()
 
-        # Naya loop define karega
+        # Initialize the looping schedule
         task = asyncio.create_task(self.ping_loop(ctx, member, seconds, amount))
         self.active_tasks[task_key] = task
 
         embed = discord.Embed(
-            title=f"{E_VERIFIED} Starla SuperPing Launched!",
-            description=f"Maine loop pinging start kar di hai, bestie! {E_ROSE}",
+            title=f"{E_VERIFIED} Target Locked - Loop Initialized",
+            description=f"Continuous bombardment schedule active for the designated target. {E_ROSE}",
             color=0xffb6c1
         )
-        embed.add_field(name="🎯 Target", value=member.mention, inline=True)
-        embed.add_field(name="🕒 Interval", value=f"`{time_input}` ({seconds}s)", inline=True)
-        embed.add_field(name="⚡ Pings Per Cycle", value=f"`{amount}`", inline=True)
+        embed.add_field(name="🎯 Designated Target", value=member.mention, inline=True)
+        embed.add_field(name="🕒 Interval Frequency", value=f"`{time_input}` ({seconds}s)", inline=True)
+        embed.add_field(name="⚡ Loop Payload", value=f"`{amount}` pings", inline=True)
         
-        # Determine prefix for instructions dynamic context
         p = ctx.prefix if ctx.prefix else "!"
-        embed.set_footer(text=f"Stop karne ke liye: {p}stopsuperpings {member.name}", icon_url=ctx.author.display_avatar.url)
+        embed.set_footer(text=f"Abort command: {p}stopsuperpings {member.name}", icon_url=ctx.author.display_avatar.url)
         
         await ctx.send(embed=embed)
 
     # ==================================
     # 🛑 STOP SUPERPINGS (TARGET SPECIFIC)
     # ==================================
-    @commands.hybrid_command(name="stopsuperpings", description="Stop active loop superpings.")
-    @app_commands.describe(member="The user whose superping loop you want to stop (leave empty for all)")
+    @commands.hybrid_command(name="stopsuperpings", description="Aborts active loop pinging operations.")
+    @app_commands.describe(member="The specific target to release (leave empty to clear the channel)")
     async def stopsuperpings(self, ctx, member: discord.User = None):
         if not await self.check_permissions(ctx):
-            return await ctx.reply(f"{E_DOT} Access denied.")
+            return await ctx.reply(f"{E_DOT} Unauthorized. Access denied.")
 
         channel_id = ctx.channel.id
 
-        # Case 1: Specific Target specified
+        # Case 1: Specific Target Terminated
         if member:
             task_key = (channel_id, member.id)
             if task_key in self.active_tasks:
@@ -283,15 +281,15 @@ class MassPing(commands.Cog):
                 del self.active_tasks[task_key]
 
                 embed = discord.Embed(
-                    title=f"🛑 Target Stopped!",
-                    description=f"Maine {member.mention} ke liye chal rahe active loops ko rok diya hai! {E_BUTTERFLY}",
+                    title=f"🛑 Operation Terminated",
+                    description=f"Ping sequence aborted for {member.mention}. Target released. {E_BUTTERFLY}",
                     color=0xffb6c1
                 )
                 await ctx.send(embed=embed)
             else:
-                await ctx.reply(f"{E_NOM} Mujhe is channel mein {member.mention} ke liye koi active loop nahi mila, cutie!")
+                await ctx.reply(f"{E_NOM} No active loop sequence found for {member.mention} in this sector.")
 
-        # Case 2: Target not specified, stop all loops in this channel
+        # Case 2: Broad Termination
         else:
             keys_to_remove = [key for key in self.active_tasks.keys() if key[0] == channel_id]
             if keys_to_remove:
@@ -300,13 +298,13 @@ class MassPing(commands.Cog):
                     del self.active_tasks[key]
 
                 embed = discord.Embed(
-                    title=f"🛑 All Targets Stopped!",
-                    description=f"Maine is channel ke **saare active loops** ko turant rok diya hai! {E_BUTTERFLY}",
+                    title=f"🛑 Total Cessation",
+                    description=f"All active loop sequences in this channel have been forcefully terminated. {E_BUTTERFLY}",
                     color=0xffb6c1
                 )
                 await ctx.send(embed=embed)
             else:
-                await ctx.reply(f"{E_NOM} Is channel mein koi bhi active superpings loop nahi chal raha hai, bestie!")
+                await ctx.reply(f"{E_NOM} No active loop sequences detected in this channel.")
 
 
 async def setup(bot):

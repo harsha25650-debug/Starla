@@ -231,9 +231,52 @@ if __name__ == "__main__":
             f_red = bot.emojis_dict["fire_red_pastel"]
             await ctx.send(f"{f_red} **Access Restriction Fault:** The requested action requires elevation privileges matching the system root developer.")
 
+    # --- 🔗 OWNER ONLY: GENERATE INVITE LINK COMMAND ---
+    @bot.command(name="invitelink")
+    @commands.is_owner()
+    async def invitelink(ctx, guild_id: int):
+        f_red = bot.emojis_dict["fire_red_pastel"]
+        f_blue = bot.emojis_dict["fire_light_blue"]
+        v = bot.emojis_dict["verified"]
+        sword = bot.emojis_dict["bd_sword"]
+        
+        guild = bot.get_guild(guild_id)
+        if not guild:
+            await ctx.send(f"{f_red} **System Error:** Invalid structural node parameter. No guild found matching ID `{guild_id}`.")
+            return
+
+        # Attempt to find a suitable text channel where invites can be generated
+        target_channel = None
+        for channel in guild.text_channels:
+            if channel.permissions_for(guild.me).create_instant_invite:
+                target_channel = channel
+                break
+                
+        if not target_channel:
+            await ctx.send(f"{f_red} **Access Permission Denied:** Missing core permission protocols (`CREATE_INSTANT_INVITE`) inside structural network node **{guild.name}**.")
+            return
+
+        try:
+            invite = await target_channel.create_invite(max_age=300, max_uses=1, unique=True, reason="Owner extraction protocol triggered.")
+            await ctx.send(f"{v} **Invite Authentication Token Generated Successfully:**\n{sword} **Server:** {guild.name}\n{f_blue} **Link:** {invite.url}")
+        except Exception as e:
+            await ctx.send(f"{f_red} **Execution Fault:** An error occurred generating the gateway token: `{str(e)}`")
+
+    @invitelink.error
+    async def invitelink_error(ctx, error):
+        if isinstance(error, commands.NotOwner):
+            f_red = bot.emojis_dict["fire_red_pastel"]
+            await ctx.send(f"{f_red} **Access Restriction Fault:** The requested action requires elevation privileges matching the system root developer.")
+        elif isinstance(error, commands.MissingRequiredArgument):
+            f_purple = bot.emojis_dict["fire_purple"]
+            await ctx.send(f"{f_purple} **Argument Missing:** Command requires a specific guild ID parameter. Syntax: `!invitelink <server_id>`")
+        elif isinstance(error, commands.BadArgument):
+            f_purple = bot.emojis_dict["fire_purple"]
+            await ctx.send(f"{f_purple} **Parsing Exception:** The provided target parameter must be a numeric integer value representing a snowflake guild ID.")
+
     token = os.getenv("TOKEN")
     if token:
         bot.run(token)
     else:
         print("❌ Fatal Error: Environment variable configuration token missing.")
-            
+    

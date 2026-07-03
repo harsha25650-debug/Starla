@@ -108,9 +108,6 @@ class Starla(commands.Bot):
                     print(f"❌ Failed to load extension {f}: {e}")
 
     async def on_ready(self):
-        v = self.emojis_dict["verified"]
-        dot = self.emojis_dict["spider_red_dot"]
-        
         print(f"---")
         print(f"Logged in as {self.user}")
         print(f"Bot is active in {len(self.guilds)} servers")
@@ -125,7 +122,7 @@ class Starla(commands.Bot):
         
         try:
             synced = await self.tree.sync()
-            print(f"✨ Synced {len(synced)} Slash Commands")
+            print(f"✨ Synced {len(synced)} Hybrid Application Commands Globally")
         except Exception as e:
             print(f"⚠️ Sync Error: {e}")
 
@@ -161,7 +158,7 @@ class Starla(commands.Bot):
                 
             elif content == "":
                 current_prefix = self.command_prefix(self, message)
-                await message.reply(f"{v} Greetings. I am **Starla**, an automated application network optimized by **Harsh**. Your guild prefix is configuration `{current_prefix}`. Use `{current_prefix}help` to access service modules. {heart} {mor}")
+                await message.reply(f"{v} Greetings. I am **Starla**, an automated application network optimized by **Harsh**. Your configuration prefix is `{current_prefix}`. Use `{current_prefix}help` or check slash interaction parameters to access service modules. {heart} {mor}")
                 return
 
         await self.process_commands(message)
@@ -169,14 +166,16 @@ class Starla(commands.Bot):
 if __name__ == "__main__":
     bot = Starla()
     
-    # --- 🏓 ADVANCED PING COMMAND ---
-    @bot.command(name="ping")
+    # --- 🏓 HYBRID PING COMMAND ---
+    @bot.hybrid_command(name="ping", description="Checks the application system responsiveness metrics.")
     async def ping(ctx):
         dot = bot.emojis_dict["spider_red_dot"]
         cross = bot.emojis_dict["spider_cross"]
         sword = bot.emojis_dict["bd_sword"]
         f_blue = bot.emojis_dict["fire_light_blue"]
         f_purple = bot.emojis_dict["fire_purple"]
+        
+        await ctx.defer()
         
         start_time = asyncio.get_event_loop().time()
         msg = await ctx.send(f"{dot} *Executing asynchronous system diagnostic handshakes...*")
@@ -192,18 +191,22 @@ if __name__ == "__main__":
         )
         embed.add_field(name=f"{f_blue} WebSocket Protocol", value=f"```ansi\n\u001b[2;34m{websocket_latency}ms\u001b[0m\n```", inline=True)
         embed.add_field(name=f"{f_purple} Gateway REST API", value=f"```ansi\n\u001b[2;35m{rest_latency}ms\u001b[0m\n```", inline=True)
-        embed.set_footer(text="Starla Secure Framework Core Execution Engine", icon_url=ctx.author.display_avatar.url)
+        
+        avatar_url = ctx.author.display_avatar.url if ctx.author else None
+        embed.set_footer(text="Starla Secure Framework Core Execution Engine", icon_url=avatar_url)
         
         await msg.edit(content=f"{sword} **System Analytics Fetched:**", embed=embed)
 
-    # --- 📑 OWNER ONLY: SERVER LIST COMMAND ---
-    @bot.command(name="serverlist")
+    # --- 📑 HYBRID SERVER LIST COMMAND ---
+    @bot.hybrid_command(name="serverlist", description="Owner Only: Displays connected cluster network guild items.")
     @commands.is_owner()
     async def serverlist(ctx):
         admin = bot.emojis_dict["air_admin"]
         sword = bot.emojis_dict["bd_sword"]
         f_white = bot.emojis_dict["fire_white"]
         f_red = bot.emojis_dict["fire_red_pastel"]
+
+        await ctx.defer()
 
         if not bot.guilds:
             await ctx.send(f"{f_red} System alert: This automation matrix is not assigned to any virtual network frameworks.")
@@ -231,21 +234,29 @@ if __name__ == "__main__":
             f_red = bot.emojis_dict["fire_red_pastel"]
             await ctx.send(f"{f_red} **Access Restriction Fault:** The requested action requires elevation privileges matching the system root developer.")
 
-    # --- 🔗 OWNER ONLY: GENERATE INVITE LINK COMMAND ---
-    @bot.command(name="invitelink")
+    # --- 🔗 HYBRID GENERATE INVITE LINK COMMAND ---
+    @bot.hybrid_command(name="invitelink", description="Owner Only: Generates localized temporary access tokens using a guild ID string.")
     @commands.is_owner()
-    async def invitelink(ctx, guild_id: int):
+    async def invitelink(ctx, guild_id: str):
         f_red = bot.emojis_dict["fire_red_pastel"]
         f_blue = bot.emojis_dict["fire_light_blue"]
         v = bot.emojis_dict["verified"]
         sword = bot.emojis_dict["bd_sword"]
         
-        guild = bot.get_guild(guild_id)
+        await ctx.defer()
+        
+        try:
+            parsed_id = int(guild_id)
+        except ValueError:
+            f_purple = bot.emojis_dict["fire_purple"]
+            await ctx.send(f"{f_purple} **Parsing Exception:** Target parameter must represent a clean numeric snowflake ID layout string.")
+            return
+
+        guild = bot.get_guild(parsed_id)
         if not guild:
             await ctx.send(f"{f_red} **System Error:** Invalid structural node parameter. No guild found matching ID `{guild_id}`.")
             return
 
-        # Attempt to find a suitable text channel where invites can be generated
         target_channel = None
         for channel in guild.text_channels:
             if channel.permissions_for(guild.me).create_instant_invite:
@@ -269,14 +280,11 @@ if __name__ == "__main__":
             await ctx.send(f"{f_red} **Access Restriction Fault:** The requested action requires elevation privileges matching the system root developer.")
         elif isinstance(error, commands.MissingRequiredArgument):
             f_purple = bot.emojis_dict["fire_purple"]
-            await ctx.send(f"{f_purple} **Argument Missing:** Command requires a specific guild ID parameter. Syntax: `!invitelink <server_id>`")
-        elif isinstance(error, commands.BadArgument):
-            f_purple = bot.emojis_dict["fire_purple"]
-            await ctx.send(f"{f_purple} **Parsing Exception:** The provided target parameter must be a numeric integer value representing a snowflake guild ID.")
+            await ctx.send(f"{f_purple} **Argument Missing:** Command requires a specific target guild ID parameter configuration.")
 
     token = os.getenv("TOKEN")
     if token:
         bot.run(token)
     else:
         print("❌ Fatal Error: Environment variable configuration token missing.")
-    
+                                   

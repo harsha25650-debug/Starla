@@ -220,7 +220,7 @@ class MassPing(commands.Cog):
     @app_commands.describe(
         member="Designated target",
         time_input="Interval frequency (e.g., 5s, 1m, 1h, 10h)",
-        amount="Ping payload per loop (max 50)"
+        amount="Ping payload per loop (max 200)"
     )
     async def superpings(self, ctx, member: discord.User, time_input: str, amount: int):
         if not await self.check_permissions(ctx):
@@ -234,8 +234,8 @@ class MassPing(commands.Cog):
         # Security checks to avoid platform limits
         if seconds < 10:
             return await ctx.reply(f"{E_NOM} **Security Protocol:** Minimum loop interval is capped at 10 seconds.")
-        if amount > 50:
-            return await ctx.reply(f"{E_NOM} **Security Protocol:** Maximum loop payload is capped at 50.")
+        if amount > 200:
+            return await ctx.reply(f"{E_NOM} **Security Protocol:** Maximum loop payload is capped at 200.")
 
         channel_id = ctx.channel.id
         task_key = (channel_id, member.id)

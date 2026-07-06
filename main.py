@@ -11,7 +11,7 @@ import random
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 from discord.ext import commands, tasks
-from discord import Streaming
+from discord import Streaming, app_commands
 
 logging.basicConfig(level=logging.INFO)
 
@@ -23,7 +23,7 @@ def run_health_server():
             self.end_headers()
             self.wfile.write(b"Starla Alive")
         def log_message(self, format, *args): 
-            return # Keeps terminal logs clean
+            return 
             
     port = int(os.environ.get("PORT", 8080))
     try:
@@ -60,6 +60,10 @@ def get_prefix(bot, message):
 class Starla(commands.Bot):
     def __init__(self):
         intents = discord.Intents.all()
+        # Explicit intents adjustment for DMs processing
+        intents.dm_messages = True
+        intents.message_content = True
+        
         super().__init__(
             command_prefix=get_prefix, 
             intents=intents, 
@@ -168,6 +172,8 @@ if __name__ == "__main__":
     
     # --- 🏓 HYBRID PING COMMAND ---
     @bot.hybrid_command(name="ping", description="Checks the application system responsiveness metrics.")
+    @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+    @app_commands.allowed_installs(guilds=True, users=True)
     async def ping(ctx):
         dot = bot.emojis_dict["spider_red_dot"]
         cross = bot.emojis_dict["spider_cross"]
@@ -199,6 +205,8 @@ if __name__ == "__main__":
 
     # --- 📑 HYBRID SERVER LIST COMMAND ---
     @bot.hybrid_command(name="serverlist", description="Owner Only: Displays connected cluster network guild items.")
+    @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+    @app_commands.allowed_installs(guilds=True, users=True)
     @commands.is_owner()
     async def serverlist(ctx):
         admin = bot.emojis_dict["air_admin"]
@@ -236,6 +244,8 @@ if __name__ == "__main__":
 
     # --- 🔗 HYBRID GENERATE INVITE LINK COMMAND ---
     @bot.hybrid_command(name="invitelink", description="Owner Only: Generates localized temporary access tokens using a guild ID string.")
+    @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+    @app_commands.allowed_installs(guilds=True, users=True)
     @commands.is_owner()
     async def invitelink(ctx, guild_id: str):
         f_red = bot.emojis_dict["fire_red_pastel"]
@@ -287,4 +297,4 @@ if __name__ == "__main__":
         bot.run(token)
     else:
         print("❌ Fatal Error: Environment variable configuration token missing.")
-                                   
+        

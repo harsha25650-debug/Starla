@@ -60,7 +60,6 @@ def get_prefix(bot, message):
 class Starla(commands.Bot):
     def __init__(self):
         intents = discord.Intents.all()
-        # Explicit intents adjustment for DMs processing
         intents.dm_messages = True
         intents.message_content = True
         
@@ -102,6 +101,9 @@ class Starla(commands.Bot):
         from database import Database
         self.db = Database(db_path)
         print("💾 Database connected successfully.")
+        
+        # Register core cogs internally first
+        await self.add_cog(CoreCommands(self))
         
         for f in os.listdir('./'):
             if f.endswith('.py') and f not in ['main.py', 'database.py']:
@@ -167,19 +169,21 @@ class Starla(commands.Bot):
 
         await self.process_commands(message)
 
-if __name__ == "__main__":
-    bot = Starla()
-    
+# --- ⚙️ HYBRID ROUTING COG INTEGRATION ---
+class CoreCommands(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
     # --- 🏓 HYBRID PING COMMAND ---
-    @bot.hybrid_command(name="ping", description="Checks the application system responsiveness metrics.")
+    @commands.hybrid_command(name="ping", description="Checks the application system responsiveness metrics.")
     @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     @app_commands.allowed_installs(guilds=True, users=True)
-    async def ping(ctx):
-        dot = bot.emojis_dict["spider_red_dot"]
-        cross = bot.emojis_dict["spider_cross"]
-        sword = bot.emojis_dict["bd_sword"]
-        f_blue = bot.emojis_dict["fire_light_blue"]
-        f_purple = bot.emojis_dict["fire_purple"]
+    async def ping(self, ctx):
+        dot = self.bot.emojis_dict["spider_red_dot"]
+        cross = self.bot.emojis_dict["spider_cross"]
+        sword = self.bot.emojis_dict["bd_sword"]
+        f_blue = self.bot.emojis_dict["fire_light_blue"]
+        f_purple = self.bot.emojis_dict["fire_purple"]
         
         await ctx.defer()
         
@@ -188,7 +192,7 @@ if __name__ == "__main__":
         end_time = asyncio.get_event_loop().time()
         
         rest_latency = round((end_time - start_time) * 1000)
-        websocket_latency = round(bot.latency * 1000)
+        websocket_latency = round(self.bot.latency * 1000)
         
         embed = discord.Embed(
             title=f"{cross} Core Diagnostic Matrix Status",
@@ -204,26 +208,26 @@ if __name__ == "__main__":
         await msg.edit(content=f"{sword} **System Analytics Fetched:**", embed=embed)
 
     # --- 📑 HYBRID SERVER LIST COMMAND ---
-    @bot.hybrid_command(name="serverlist", description="Owner Only: Displays connected cluster network guild items.")
+    @commands.hybrid_command(name="serverlist", description="Owner Only: Displays connected cluster network guild items.")
     @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     @app_commands.allowed_installs(guilds=True, users=True)
     @commands.is_owner()
-    async def serverlist(ctx):
-        admin = bot.emojis_dict["air_admin"]
-        sword = bot.emojis_dict["bd_sword"]
-        f_white = bot.emojis_dict["fire_white"]
-        f_red = bot.emojis_dict["fire_red_pastel"]
+    async def serverlist(self, ctx):
+        admin = self.bot.emojis_dict["air_admin"]
+        sword = self.bot.emojis_dict["bd_sword"]
+        f_white = self.bot.emojis_dict["fire_white"]
+        f_red = self.bot.emojis_dict["fire_red_pastel"]
 
         await ctx.defer()
 
-        if not bot.guilds:
+        if not self.bot.guilds:
             await ctx.send(f"{f_red} System alert: This automation matrix is not assigned to any virtual network frameworks.")
             return
 
         msg_list = []
-        current_msg = f"{admin} **Connected Network Guild Infrastructures ({len(bot.guilds)}):**\n\n"
+        current_msg = f"{admin} **Connected Network Guild Infrastructures ({len(self.bot.guilds)}):**\n\n"
         
-        for i, guild in enumerate(bot.guilds, 1):
+        for i, guild in enumerate(self.bot.guilds, 1):
             line = f"{sword} `{i:02d}.` **{guild.name}** (ID: `{guild.id}`) │ Structural Node Count: `{guild.member_count}` {f_white}\n"
             if len(current_msg) + len(line) > 1950:
                 msg_list.append(current_msg)
@@ -237,32 +241,32 @@ if __name__ == "__main__":
             await ctx.send(page)
 
     @serverlist.error
-    async def serverlist_error(ctx, error):
+    async def serverlist_error(self, ctx, error):
         if isinstance(error, commands.NotOwner):
-            f_red = bot.emojis_dict["fire_red_pastel"]
+            f_red = self.bot.emojis_dict["fire_red_pastel"]
             await ctx.send(f"{f_red} **Access Restriction Fault:** The requested action requires elevation privileges matching the system root developer.")
 
     # --- 🔗 HYBRID GENERATE INVITE LINK COMMAND ---
-    @bot.hybrid_command(name="invitelink", description="Owner Only: Generates localized temporary access tokens using a guild ID string.")
+    @commands.hybrid_command(name="invitelink", description="Owner Only: Generates localized temporary access tokens using a guild ID string.")
     @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     @app_commands.allowed_installs(guilds=True, users=True)
     @commands.is_owner()
-    async def invitelink(ctx, guild_id: str):
-        f_red = bot.emojis_dict["fire_red_pastel"]
-        f_blue = bot.emojis_dict["fire_light_blue"]
-        v = bot.emojis_dict["verified"]
-        sword = bot.emojis_dict["bd_sword"]
+    async def invitelink(self, ctx, guild_id: str):
+        f_red = self.bot.emojis_dict["fire_red_pastel"]
+        f_blue = self.bot.emojis_dict["fire_light_blue"]
+        v = self.bot.emojis_dict["verified"]
+        sword = self.bot.emojis_dict["bd_sword"]
         
         await ctx.defer()
         
         try:
             parsed_id = int(guild_id)
         except ValueError:
-            f_purple = bot.emojis_dict["fire_purple"]
+            f_purple = self.bot.emojis_dict["fire_purple"]
             await ctx.send(f"{f_purple} **Parsing Exception:** Target parameter must represent a clean numeric snowflake ID layout string.")
             return
 
-        guild = bot.get_guild(parsed_id)
+        guild = self.bot.get_guild(parsed_id)
         if not guild:
             await ctx.send(f"{f_red} **System Error:** Invalid structural node parameter. No guild found matching ID `{guild_id}`.")
             return
@@ -284,17 +288,20 @@ if __name__ == "__main__":
             await ctx.send(f"{f_red} **Execution Fault:** An error occurred generating the gateway token: `{str(e)}`")
 
     @invitelink.error
-    async def invitelink_error(ctx, error):
+    async def invitelink_error(self, ctx, error):
         if isinstance(error, commands.NotOwner):
-            f_red = bot.emojis_dict["fire_red_pastel"]
+            f_red = self.bot.emojis_dict["fire_red_pastel"]
             await ctx.send(f"{f_red} **Access Restriction Fault:** The requested action requires elevation privileges matching the system root developer.")
         elif isinstance(error, commands.MissingRequiredArgument):
-            f_purple = bot.emojis_dict["fire_purple"]
+            f_purple = self.bot.emojis_dict["fire_purple"]
             await ctx.send(f"{f_purple} **Argument Missing:** Command requires a specific target guild ID parameter configuration.")
 
+
+if __name__ == "__main__":
+    bot = Starla()
     token = os.getenv("TOKEN")
     if token:
         bot.run(token)
     else:
         print("❌ Fatal Error: Environment variable configuration token missing.")
-        
+            

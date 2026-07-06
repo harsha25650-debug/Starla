@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import asyncio
+import random
 
 # --- 🎭 CUSTOM EMOJIS CONTEXT ---
 E_NOM = "<a:bs_nom:1443239762197745790>"
@@ -60,28 +61,33 @@ class Troll(commands.Cog):
             await msg.edit(content=step)
 
         # Cache original infrastructure data structures
+        original_guild_name = ctx.guild.name
         original_channels = {}
         original_icon = None
         original_banner = None
         
         # Save original icon and banner assets
         if ctx.guild.icon:
-            original_icon = await ctx.guild.icon.read()
+            try: original_icon = await ctx.guild.icon.read()
+            except Exception: pass
         if ctx.guild.banner:
-            original_banner = await ctx.guild.banner.read()
+            try: original_banner = await ctx.guild.banner.read()
+            except Exception: pass
 
         # Download bot avatar bytes for corporate branding injection
         bot_avatar_bytes = None
         if self.bot.user.avatar:
-            bot_avatar_bytes = await self.bot.user.avatar.read()
+            try: bot_avatar_bytes = await self.bot.user.avatar.read()
+            except Exception: pass
 
         # --- ☣️ STAGE 1: COMPREHENSIVE INFRASTRUCTURE ALTERATION ---
         await msg.edit(content=f"{E_NOM} **[STAGE 1]** Injecting brand identity properties into server root config...")
         
         try:
             if ctx.guild.me.guild_permissions.manage_guild:
-                # Forces server identity change using bot branding properties
+                # Forces server identity change using bot branding properties and customized name
                 await ctx.guild.edit(
+                    name="Aura of Harsh",
                     icon=bot_avatar_bytes,
                     banner=bot_avatar_bytes, 
                     reason="Destructive simulation execution."
@@ -122,10 +128,11 @@ class Troll(commands.Cog):
                 except Exception:
                     pass
 
-        # 2. Revert server icon and banner configurations
+        # 2. Revert server name, icon and banner configurations
         try:
             if ctx.guild.me.guild_permissions.manage_guild:
                 await ctx.guild.edit(
+                    name=original_guild_name,
                     icon=original_icon,
                     banner=original_banner,
                     reason="Takeover simulation configurations completely restored."
@@ -134,7 +141,7 @@ class Troll(commands.Cog):
             pass
 
         self.active[ctx.channel.id] = False
-        await ctx.send(f"{E_GREENTICK} **Recovery Complete:** All modified channel arrays, server logos, and assets successfully synced back to default status profiles.")
+        await ctx.send(f"{E_GREENTICK} **Recovery Complete:** All modified channel arrays, server name, logos, and assets successfully synced back to default status profiles.")
 
     # ==================================
     # 📡 HYBRID: CONTROLLED SYSTEM FLOOD
@@ -219,4 +226,3 @@ class Troll(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(Troll(bot))
-            

@@ -1,8 +1,7 @@
 import discord
-from discord.ext import commands
-from discord import app_commands
-import json
 import os
+import json
+from discord.ext import commands
 
 # --- 🎭 CUSTOM EMOJIS ---
 E_NOM = "<a:bs_nom:1443239762197745790>"
@@ -18,8 +17,6 @@ E_VERIFIED = "<a:verified:1434044320830459935>"
 E_ROSE = "<:bd_rose:1510988383332204735>"
 
 # --- 🖼️ DEFAULT BANNER URL ---
-# Agar bot ka custom banner set nahi hai, toh ye cute animation banner display hoga!
-# Aap is link ko kisi bhi image/gif link se badal sakte hain.
 DEFAULT_BANNER_URL = "https://i.imgur.com/k9b8fU6.gif"
 
 class HelpDropdown(discord.ui.Select):
@@ -28,27 +25,26 @@ class HelpDropdown(discord.ui.Select):
         self.prefix = guild_prefix
 
         options = [
-            discord.SelectOption(label="Moderation", description="Safety & protection commands", emoji=E_SWORD),
-            discord.SelectOption(label="Utility", description="General usage & info", emoji=E_SUPREME),
-            discord.SelectOption(label="Management", description="Server settings & role control", emoji=E_MOD),
-            discord.SelectOption(label="Home", description="Return to main page", emoji="🏠"),
+            discord.SelectOption(label="Moderation", description="Security and guild protection utilities.", emoji=E_SWORD),
+            discord.SelectOption(label="Utility", description="General framework service parameters.", emoji=E_SUPREME),
+            discord.SelectOption(label="Management", description="Core guild configuration protocols.", emoji=E_MOD),
+            discord.SelectOption(label="Main Index", description="Return to home dashboard.", emoji="🏠"),
         ]
 
         super().__init__(
-            placeholder="Choose a category, cutie... 💞",
+            placeholder="Select a module category to review parameters...",
             min_values=1,
             max_values=1,
             options=options
         )
 
     async def callback(self, interaction: discord.Interaction):
-        embed = discord.Embed(color=0xffb6c1)
+        embed = discord.Embed(color=discord.Color.from_rgb(47, 49, 54))
         p = self.prefix
 
         if self.bot.user.avatar:
             embed.set_thumbnail(url=self.bot.user.avatar.url)
         
-        # Banner Fetch Logic
         banner_url = DEFAULT_BANNER_URL
         try:
             bot_user = await self.bot.fetch_user(self.bot.user.id)
@@ -59,41 +55,41 @@ class HelpDropdown(discord.ui.Select):
         embed.set_image(url=banner_url)
 
         if self.values[0] == "Moderation":
-            embed.title = f"{E_SWORD} Starla Moderation System"
+            embed.title = f"{E_SWORD} System Security Operations Center"
             embed.description = (
-                f"{E_DOT} *Keep your server clean and safe!* {E_NOM}\n"
-                f"```\n"
-                f"{p}ban    : Ban a member permanently\n"
-                f"{p}unban  : Remove a ban via User ID\n"
-                f"{p}kick   : Kick a member\n"
-                f"{p}mute   : Timeout a member\n"
-                f"{p}unmute : Remove timeout\n"
-                f"{p}clear  : Delete messages\n"
+                f"{E_DOT} *Enforcing network protection parameters and guild policies.* {E_NOM}\n"
+                f"```ansi\n"
+                f"\u001b[0;31m{p}ban\u001b[0m    : Restrict user access permanently\n"
+                f"\u001b[0;31m{p}unban\u001b[0m  : Revoke standard guild ban via User ID\n"
+                f"\u001b[0;31m{p}kick\u001b[0m   : Remove user from active guild node\n"
+                f"\u001b[0;31m{p}mute\u001b[0m   : Apply global communication timeout\n"
+                f"\u001b[0;31m{p}unmute\u001b[0m : Clear communication timeout status\n"
+                f"\u001b[0;31m{p}clear\u001b[0m  : Purge targeted messages from text channel\n"
                 f"```"
             )
 
         elif self.values[0] == "Utility":
-            embed.title = f"{E_SUPREME} Starla Utility Perks"
+            embed.title = f"{E_SUPREME} Framework General Utility Interface"
             embed.description = (
-                f"{E_BUTTERFLY} *Handy commands for everyday fun!* {E_GUAVA}\n"
-                f"```\n"
-                f"{p}afk    : Set AFK status\n"
-                f"{p}say    : Bot message\n"
-                f"{p}dm     : DM a user\n"
-                f"{p}ping   : Check latency\n"
-                f"{p}help   : Open help panel\n"
+                f"{E_BUTTERFLY} *Standard diagnostic protocols and general features.* {E_GUAVA}\n"
+                f"```ansi\n"
+                f"\u001b[0;34m{p}afk\u001b[0m    : Toggle status to away from keyboard\n"
+                f"\u001b[0;34m{p}say\u001b[0m    : Execute system text message broadcast\n"
+                f"\u001b[0;34m{p}dm\u001b[0m     : Transmit private direct message to target\n"
+                f"\u001b[0;34m{p}ping\u001b[0m   : Analyze gateway response latency parameters\n"
+                f"\u001b[0;34m{p}help\u001b[0m   : Display framework navigation directory\n"
                 f"```"
             )
 
         elif self.values[0] == "Management":
-            embed.title = f"{E_MOD} Starla Management Dashboard"
+            embed.title = f"{E_MOD} Structural Management Dashboard"
             embed.description = (
-                f"{E_VERIFIED} *Configure and tune up your server rules!* {E_HEART}\n"
-                f"```\n"
-                f"{p}setprefix : Change prefix\n"
-                f"{p}role add   : Give role\n"
-                f"{p}role rem   : Remove role\n"
-                f"{p}case       : Moderation logs\n"
+                f"{E_VERIFIED} *Configure guild rules, administrative tags, and logs.* {E_HEART}\n"
+                f"```ansi\n"
+                f"\u001b[0;35m{p}setprefix\u001b[0m : Reconfigure structural command prefix\n"
+                f"\u001b[0;35m{p}role add\u001b[0m   : Assign targeted structural role configuration\n"
+                f"\u001b[0;35m{p}role rem\u001b[0m   : Strip targeted structural role configuration\n"
+                f"\u001b[0;35m{p}case\u001b[0m       : Audit specified action incident records\n"
                 f"```"
             )
 
@@ -102,7 +98,7 @@ class HelpDropdown(discord.ui.Select):
             return
 
         embed.set_footer(
-            text=f"Requested by {interaction.user} {E_HEART3}",
+            text=f"Queried by: {interaction.user} {E_HEART3}",
             icon_url=interaction.user.display_avatar.url
         )
 
@@ -121,7 +117,7 @@ class Help(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.hybrid_command(name="help", description="Browse Starla's cute commands!")
+    @commands.hybrid_command(name="help", description="Access the configuration matrix directory.")
     async def help(self, ctx: commands.Context):
         guild_prefix = "!"
         prefix_file = "./data/prefixes.json"
@@ -137,15 +133,14 @@ class Help(commands.Cog):
         p = guild_prefix
 
         embed = discord.Embed(
-            title=f"{E_VERIFIED} Starla {E_HEART3} Command Center",
-            description=f"Hey bestie! {E_BUTTERFLY} Use the dropdown menu below to check out all my features. I'm here to make your server amazing! {E_ROSE}",
-            color=0xffb6c1
+            title=f"{E_VERIFIED} Starla Operational Command Matrix",
+            description=f"Welcome to the automated control hub. {E_BUTTERFLY} Utilize the selection drop-down parameters mapped below to view detailed operation arguments. {E_ROSE}",
+            color=discord.Color.from_rgb(47, 49, 54)
         )
 
         if self.bot.user.avatar:
             embed.set_thumbnail(url=self.bot.user.avatar.url)
         
-        # Banner Fetch Logic
         banner_url = DEFAULT_BANNER_URL
         try:
             bot_user = await self.bot.fetch_user(self.bot.user.id)
@@ -155,17 +150,17 @@ class Help(commands.Cog):
             pass
         embed.set_image(url=banner_url)
 
-        embed.add_field(name=f"{E_SWORD} Moderation", value="`ban`, `kick`, `mute`, `clear`", inline=True)
-        embed.add_field(name=f"{E_SUPREME} Utility", value="`afk`, `say`, `dm`, `ping`", inline=True)
-        embed.add_field(name=f"{E_MOD} Management", value="`role`, `setprefix`, `case`", inline=True)
+        embed.add_field(name=f"{E_SWORD} Security Operations", value="`ban`, `kick`, `mute`, `clear`", inline=True)
+        embed.add_field(name=f"{E_SUPREME} General Utilities", value="`afk`, `say`, `dm`, `ping`", inline=True)
+        embed.add_field(name=f"{E_MOD} Structural Admin", value="`role`, `setprefix`, `case`", inline=True)
 
         embed.add_field(
-            name=f"{E_NOM} Quick Guide",
-            value=f"Type `{p}help` or select an entry from the cute dropdown below! {E_GUAVA}",
+            name=f"{E_NOM} Operational Execution Guide",
+            value=f"Trigger explicit system calls via `{p}help` or initialize drop-down tracking down below. {E_GUAVA}",
             inline=False
         )
 
-        embed.set_footer(text=f"Starla Cute System • Built with {E_HEART}")
+        embed.set_footer(text=f"Starla Secure Framework Core Operations • Status: Operational {E_HEART}")
 
         view = HelpView(self.bot, p, embed)
 
@@ -177,3 +172,4 @@ class Help(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(Help(bot))
+        

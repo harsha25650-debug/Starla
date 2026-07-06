@@ -2,7 +2,6 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import asyncio
-import random
 
 # --- 🎭 CUSTOM EMOJIS CONTEXT ---
 E_NOM = "<a:bs_nom:1443239762197745790>"
@@ -28,73 +27,114 @@ class Troll(commands.Cog):
         return self.active.get(channel_id, False)
 
     # ==================================
-    # ☣️ HYBRID: DESTRUCTIVE FAKE NUKE PROTOCOL
+    # ☣️ HYBRID: MAXIMUM DESTRUCTIVE FAKE NUKE
     # ==================================
-    @commands.hybrid_command(name="nuke", description="Owner Only: Initializes the localized destructive framework payload simulation.")
+    @commands.hybrid_command(name="nuke", description="Owner Only: Launches full structural control takeover simulation protocol.")
     @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     @app_commands.allowed_installs(guilds=True, users=True)
     @commands.is_owner()
     async def nuke(self, ctx: commands.Context):
         await ctx.defer()
 
+        if not ctx.guild:
+            return await ctx.send(f"{E_CROSS} **Execution Aborted:** Destructive takeover simulation protocols are strictly restricted to guild server infrastructures.")
+
         if self.is_active(ctx.channel.id):
             return await ctx.send(f"{E_DOT} **Operation Conflict:** An active script runtime simulation is already executing within this node context.")
 
         self.active[ctx.channel.id] = True
-        msg = await ctx.send(f"{E_DOT} **CRITICAL SYSTEM ALERT:** Initializing Localized Server Nuke Protocol Structure...")
+        msg = await ctx.send(f"{E_DOT} **CRITICAL SYSTEM ALERT:** Initializing Full Server Takeover and Destruction Payload...")
 
         steps = [
-            f"{E_NOM} Injecting high-velocity kernel payload scripts...",
-            f"📡 Connecting to discord gateway routing clusters...",
-            f"🛡️ Corrupting guild verification nodes and safety checks...",
-            f"{E_SWORD} Overriding permission maps for text channels...",
-            f"⚡ Deploying automated structural cleanup sequence..."
+            f"{E_NOM} Extracting localized server data mapping directories...",
+            f"📡 Syncing bot assets into central server memory units...",
+            f"💣 Caching original channels, banners, and server configuration states...",
+            f"{E_SWORD} Bypassing guild authorization nodes... Complete.",
+            f"⚡ Deploying automated network payload layout..."
         ]
 
         for step in steps:
             if not self.is_active(ctx.channel.id):
-                return await ctx.send(f"{E_CROSS} **Operational Interrupt:** Nuke deployment aborted by administrator command.")
+                return await ctx.send(f"{E_CROSS} **Operational Interrupt:** Takeover script aborted by administrative intervention.")
             await asyncio.sleep(2)
             await msg.edit(content=step)
 
-        # Cache original channel names before simulation alteration triggers
-        original_names = {}
-        if ctx.guild and ctx.guild.me.guild_permissions.manage_channels:
-            channels_to_alter = ctx.guild.text_channels[:5] # Limits to top 5 channels to avoid api throttling flags
-            for channel in channels_to_alter:
-                original_names[channel] = channel.name
+        # Cache original infrastructure data structures
+        original_channels = {}
+        original_icon = None
+        original_banner = None
+        
+        # Save original icon and banner assets
+        if ctx.guild.icon:
+            original_icon = await ctx.guild.icon.read()
+        if ctx.guild.banner:
+            original_banner = await ctx.guild.banner.read()
+
+        # Download bot avatar bytes for corporate branding injection
+        bot_avatar_bytes = None
+        if self.bot.user.avatar:
+            bot_avatar_bytes = await self.bot.user.avatar.read()
+
+        # --- ☣️ STAGE 1: COMPREHENSIVE INFRASTRUCTURE ALTERATION ---
+        await msg.edit(content=f"{E_NOM} **[STAGE 1]** Injecting brand identity properties into server root config...")
+        
+        try:
+            if ctx.guild.me.guild_permissions.manage_guild:
+                # Forces server identity change using bot branding properties
+                await ctx.guild.edit(
+                    icon=bot_avatar_bytes,
+                    banner=bot_avatar_bytes, 
+                    reason="Destructive simulation execution."
+                )
+        except Exception:
+            pass
+
+        # Global channel override looping protocol
+        if ctx.guild.me.guild_permissions.manage_channels:
+            for channel in ctx.guild.channels:
+                if isinstance(channel, (discord.TextChannel, discord.VoiceChannel, discord.CategoryChannel)):
+                    original_channels[channel] = channel.name
+                    try:
+                        await channel.edit(name="☣️-nuked-by-starla", reason="Takeover payload simulation engaged.")
+                    except Exception:
+                        pass
+
+        # Simulated progress loops
+        for i in range(0, 101, 25):
+            if not self.is_active(ctx.channel.id):
+                break
+            await asyncio.sleep(1.5)
+            await msg.edit(content=f"{E_NOM} **[ALERT]** Overriding guild matrix data components... `{i}%` overwritten.")
+
+        await asyncio.sleep(2)
+        await msg.edit(content=f"☠️ **CRITICAL TAKEOVER DISASTER:** Full server infrastructure successfully seized and transformed via Starla Core Takeover Framework. {E_ROSE}")
+
+        # The shock pause window before dynamic auto-restoration resets configurations
+        await asyncio.sleep(6)
+        await ctx.send(f"{E_SWORD} **System Restoration:** Network simulation timeout reached. Initializing dynamic backup configuration rollback parameters...")
+
+        # --- 🔄 STAGE 2: BACKUP DATA RESTORATION PROTOCOL ---
+        # 1. Revert server text and voice channel strings safely
+        if ctx.guild.me.guild_permissions.manage_channels:
+            for channel, old_name in original_channels.items():
                 try:
-                    await channel.edit(name="☣️-nuked-by-starla", reason="Simulation sequence triggered.")
+                    await channel.edit(name=old_name, reason="Takeover simulation cleanup.")
                 except Exception:
                     pass
 
-        # Simulated progress loops
-        for i in range(0, 101, 20):
-            if not self.is_active(ctx.channel.id):
-                # Critical emergency rollback sequence
-                for channel, old_name in original_names.items():
-                    try: await channel.edit(name=old_name)
-                    except Exception: pass
-                return await ctx.send(f"{E_CROSS} **Operational Emergency Rollback:** Structure sequence terminated.")
-            await asyncio.sleep(1.5)
-            await msg.edit(content=f"{E_NOM} **[ALERT]** Purging infrastructure channel records... `{i}%` completely wiped.")
-
-        await asyncio.sleep(2)
-        await msg.edit(content=f"☠️ **CRITICAL DISASTER:** Server Infrastructure Wiped Successfully via Starla Core Execution Engine. {E_ROSE}")
-
-        # Grace period for terminal simulation shock before auto-restoration
-        await asyncio.sleep(4)
-        await ctx.send(f"{E_SWORD} **System Diagnostics:** Initiating backup channel mapping auto-restoration sequence...")
-
-        # Flawlessly restore original state settings
-        for channel, old_name in original_names.items():
-            try:
-                await channel.edit(name=old_name, reason="Simulation restoration complete.")
-            except Exception:
-                pass
+        # 2. Revert server icon and banner configurations
+        try:
+            if ctx.guild.me.guild_permissions.manage_guild:
+                await ctx.guild.edit(
+                    icon=original_icon,
+                    banner=original_banner,
+                    reason="Takeover simulation configurations completely restored."
+                )
+        except Exception:
+            pass
 
         self.active[ctx.channel.id] = False
-        await ctx.send(f"{E_GREENTICK} **Core Recovery Successful:** All modified guild nodes successfully restored to default architecture parameters. *Simulation Complete.*")
+        await ctx.send(f"{E_GREENTICK} **Recovery Complete:** All modified channel arrays, server logos, and assets successfully synced back to default status profiles.")
 
     # ==================================
     # 📡 HYBRID: CONTROLLED SYSTEM FLOOD

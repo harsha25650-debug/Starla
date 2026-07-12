@@ -6,6 +6,15 @@ class Spam(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.active_spam = {}
+        
+        # ✨ STARLA CUSTOM EMOJIS INTEGRATION
+        self.dot_pink = "<:topggDotPink:1525756454345375764>"
+        self.dot_black = "<:starlaDotBlack:1525756435089063948>"
+        self.arrow = "<:starlalyf_arrowglow:1525757297475850320>"
+        
+        self.yes = "<:starla_opt_yes:1525757001664299102>"
+        self.no = "<:starla_opt_no:1525756996886986885>"
+        self.cross = "<:starlacross:1525756266604007464>"
 
     def get_access(self, guild_id):
         return self.bot.db.get(f"spaccess.{guild_id}", [])
@@ -28,54 +37,54 @@ class Spam(commands.Cog):
         if ctx.guild:
             users = self.get_access(ctx.guild.id)
             return ctx.author.id in users
-        return await self.bot.is_owner(ctx.author)
+        return False
 
-    @commands.command(name="spaccess")
+    @commands.command(name="spaccess", description="Grant spam command access to a user (Owner Only)")
     @commands.is_owner()
     async def spaccess(self, ctx, member: discord.User):
         if not ctx.guild:
-            return await ctx.send("<a:spider_red_dot:1494179666133516411> Use this in a server.")
+            return await ctx.send(f"{self.cross} This command can only be executed within a server.")
         self.add_access(ctx.guild.id, member.id)
-        await ctx.send(f"<a:greentick:1494180392440303777> Access granted to {member.mention}")
+        await ctx.send(f"{self.yes} Access granted successfully to {member.mention}")
 
-    @commands.command(name="spremove")
+    @commands.command(name="spremove", description="Revoke spam command access from a user (Owner Only)")
     @commands.is_owner()
     async def spremove(self, ctx, member: discord.User):
         if not ctx.guild:
-            return await ctx.send("<a:spider_red_dot:1494179666133516411> Use this in a server.")
+            return await ctx.send(f"{self.cross} This command can only be executed within a server.")
         self.remove_access(ctx.guild.id, member.id)
-        await ctx.send(f"<a:spider_red_dot:1494179666133516411> Access removed from {member.mention}")
+        await ctx.send(f"{self.cross} Access revoked successfully from {member.mention}")
 
-    @commands.command(name="spam")
+    @commands.command(name="spam", description="Spam a specific message in batches")
     async def spam(self, ctx, *, args=None):
-
         if not await self.has_access(ctx):
-            return await ctx.send("<a:spider_red_dot:1494179666133516411> No permission.")
+            return await ctx.send(f"{self.no} **Access Denied:** You don't have authorization parameters.")
 
         if not args:
-            return await ctx.send("<a:spider_red_dot:1494179666133516411> Usage: !spam <message> <amount>")
+            return await ctx.send(f"{self.cross} **Usage Error:** `{ctx.prefix}spam <message> <amount>`")
 
         try:
+            # Splits right side se taaki multi-word message block clean rahe
             parts = args.rsplit(" ", 1)
             message = parts[0]
             amount = int(parts[1])
-        except:
-            return await ctx.send("<a:spider_red_dot:1494179666133516411> Example: !spam hello 10")
+        except Exception:
+            return await ctx.send(f"{self.cross} **Format Error:** Use `{ctx.prefix}spam hello 10` or `{ctx.prefix}spam test message 5`")
 
         if amount <= 0:
-            return await ctx.send("<a:spider_red_dot:1494179666133516411> Amount must be > 0")
+            return await ctx.send(f"{self.cross} **Value Error:** Amount parameter must be greater than 0.")
 
         amount = min(amount, 300)
-
         channel_id = ctx.channel.id
+
         if self.active_spam.get(channel_id):
-            return await ctx.send("⚠️ Already running.")
+            return await ctx.send(f"{self.cross} A frequency loop sequence is already running in this channel node.")
 
         self.active_spam[channel_id] = True
 
         try:
             await ctx.message.delete()
-        except:
+        except Exception:
             pass
 
         sent = 0
@@ -101,34 +110,39 @@ class Spam(commands.Cog):
                     await asyncio.sleep(retry + 1)
                 else:
                     break
+            except Exception:
+                break
 
         self.active_spam.pop(channel_id, None)
-        await ctx.send("<a:greentick:1494180392440303777> Done.")
+        await ctx.send(f"{self.dot_pink} Batch execution sequence completed.")
 
-    @commands.command(name="spstop")
+    @commands.command(name="spstop", description="Stop any active spam operations in the channel")
     async def spstop(self, ctx):
-
         if not await self.has_access(ctx):
-            return await ctx.send("<a:spider_red_dot:1494179666133516411> No permission.")
-
-        if self.active_spam.get(ctx.channel.id):
-            self.active_spam[ctx.channel.id] = False
-            await ctx.send("<a:greentick:1494180392440303777> Stopped.")
-        else:
-            await ctx.send("⚠️ No active spam.")
+            return await ctx.send(f"{self.no} **Access Denied:** Unauthorized token signature.")
 
         try:
             await ctx.message.delete()
-        except:
+        except Exception:
             pass
 
+        if self.active_spam.get(ctx.channel.id):
+            self.active_spam[ctx.channel.id] = False
+            await ctx.send(f"{self.yes} Background transmission sequence safely aborted.")
+        else:
+            await ctx.send(f"{self.dot_black} No background active loops detected within this channel context.")
+
+    # ❗ RE-ENGINEERED ERROR HANDLER
     @spam.error
     @spstop.error
-    async def spam_error(self, ctx, error):
+    @spaccess.error
+    @spremove.error
+    async def spam_error_handler(self, ctx, error):
         if isinstance(error, commands.NotOwner):
-            await ctx.send("<a:spider_red_dot:1494179666133516411> Owner only.")
+            await ctx.send(f"{self.no} **Restricted:** Root developer privileges required.")
         else:
-            await ctx.send("<a:spider_red_dot:1494179666133516411> Error occurred.")
+            await ctx.send(f"{self.cross} **An error occurred:** `{error}`")
 
 async def setup(bot):
     await bot.add_cog(Spam(bot))
+        

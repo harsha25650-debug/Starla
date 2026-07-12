@@ -1,18 +1,16 @@
-import discord
-from discord.ext import commands
-from discord import app_commands
-import datetime
-import asyncio
-
 class SnipeView(discord.ui.View):
     def __init__(self, snipes, user):
         super().__init__(timeout=120)
         self.snipes = snipes[::-1]
         self.index = 0
         self.user = user
+        
+        # ✨ STARLA CUSTOM EMOJIS INTEGRATION
+        self.dot_black = "<:starlaDotBlack:1525756435089063948>"
+        self.ico_info = "<:starla_ico_info:1525756986283524238>"
+        self.arrow = "<:starlalyf_arrowglow:1525757297475850320>"
 
     def format_time(self, time_str):
-        # Using aware datetimes to avoid errors
         past_time = datetime.datetime.fromisoformat(time_str)
         now = discord.utils.utcnow()
         diff = now - past_time
@@ -31,126 +29,61 @@ class SnipeView(discord.ui.View):
         data = self.snipes[self.index]
 
         embed = discord.Embed(
-            title=f"Deleted Message {self.index+1}/{len(self.snipes)}",
-            color=discord.Color.purple()
+            title=f"{self.ico_info} Snipe Menu | Message {self.index+1}/{len(self.snipes)}",
+            color=0x2b2d31
         )
 
-        embed.add_field(name="👤 Author", value=data["author"], inline=False)
-        embed.add_field(name="⏱ Deleted", value=self.format_time(data["time"]), inline=False)
-        embed.add_field(name="📩 Content", value=data["content"], inline=False)
+        embed.description = (
+            f"{self.dot_black} **Author:** {data['author']}\n"
+            f"{self.arrow} **Deleted:** `{self.format_time(data['time'])}` \n\n"
+            f"**Content:**\n{data['content']}"
+        )
 
         if data.get("attachment"):
             embed.set_image(url=data["attachment"])
 
         embed.set_footer(
-            text=f"Requested by {self.user}",
+            text=f"Requested by {self.user.name}",
             icon_url=self.user.display_avatar.url
         )
-
+        embed.timestamp = discord.utils.utcnow()
         embed.set_thumbnail(url=data["avatar"])
         return embed
 
     async def interaction_check(self, interaction: discord.Interaction):
         if interaction.user != self.user:
-            await interaction.response.send_message("❌ This menu is not for you.", ephemeral=True)
+            await interaction.response.send_message("<:starlacross:1525756266604007464> This menu belongs to someone else.", ephemeral=True)
             return False
         return True
 
-    @discord.ui.button(emoji="⏪", style=discord.ButtonStyle.secondary)
-    async def first(self, interaction: discord.Interaction, button):
+    # ⏪ First Page -> Clear Text Symbol
+    @discord.ui.button(label="«", style=discord.ButtonStyle.secondary)
+    async def first(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.index = 0
         await interaction.response.edit_message(embed=self.get_embed(), view=self)
 
-    @discord.ui.button(emoji="◀️", style=discord.ButtonStyle.secondary)
-    async def previous(self, interaction: discord.Interaction, button):
+    # ◀️ Previous Page -> Clear Text Symbol
+    @discord.ui.button(label="‹", style=discord.ButtonStyle.secondary)
+    async def previous(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.index > 0:
             self.index -= 1
             await interaction.response.edit_message(embed=self.get_embed(), view=self)
 
-    @discord.ui.button(emoji="🗑️", style=discord.ButtonStyle.danger)
-    async def delete(self, interaction: discord.Interaction, button):
+    # ❌ Cancel Menu Button using starla_opt_no custom emoji
+    @discord.ui.button(emoji="<:starla_opt_no:1525756996886986885>", style=discord.ButtonStyle.danger)
+    async def delete(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.message.delete()
 
-    @discord.ui.button(emoji="▶️", style=discord.ButtonStyle.secondary)
-    async def next(self, interaction: discord.Interaction, button):
+    # ▶️ Next Page -> Clear Text Symbol
+    @discord.ui.button(label="›", style=discord.ButtonStyle.secondary)
+    async def next(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.index < len(self.snipes) - 1:
             self.index += 1
             await interaction.response.edit_message(embed=self.get_embed(), view=self)
 
-    @discord.ui.button(emoji="⏩", style=discord.ButtonStyle.secondary)
-    async def last(self, interaction: discord.Interaction, button):
+    # ⏩ Last Page -> Clear Text Symbol
+    @discord.ui.button(label="»", style=discord.ButtonStyle.secondary)
+    async def last(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.index = len(self.snipes) - 1
         await interaction.response.edit_message(embed=self.get_embed(), view=self)
-
-
-class Snipe(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
-
-    # 🔐 FIXED PERMISSION CHECK
-    def has_perm_or_owner():
-        async def predicate(ctx):
-            # Allow Bot Owner or Server Owner
-            if ctx.author.id == ctx.bot.owner_id or ctx.author.id == ctx.guild.owner_id:
-                return True
-            # Allow Administrators or people who can Manage Messages
-            return ctx.author.guild_permissions.administrator or ctx.author.guild_permissions.manage_messages
-        return commands.check(predicate)
-
-    # 🧠 SAVE SNIPE
-    def save_snipe(self, channel_id, data):
-        path = f"snipes.{channel_id}"
-        snipes = self.bot.db.get(path, [])
-        snipes.append(data)
-
-        if len(snipes) > 20: # Keep last 20 messages
-            snipes.pop(0)
-
-        self.bot.db.set(path, snipes)
-
-    # 📥 GET SNIPE
-    def get_snipes(self, channel_id):
-        return self.bot.db.get(f"snipes.{channel_id}", [])
-
-    # 📡 LISTENER
-    @commands.Cog.listener()
-    async def on_message_delete(self, message):
-        if message.author.bot or not message.guild:
-            return
-
-        attachment = None
-        if message.attachments:
-            attachment = message.attachments[0].url
-
-        data = {
-            "content": message.content if message.content else "*No text content (likely an embed or image)*",
-            "author": message.author.mention,
-            "avatar": message.author.display_avatar.url,
-            "time": discord.utils.utcnow().isoformat(),
-            "attachment": attachment
-        }
-
-        self.save_snipe(message.channel.id, data)
-
-    # 🔍 COMMAND
-    @commands.hybrid_command(name="snipe", description="View recently deleted messages")
-    @has_perm_or_owner()
-    async def snipe(self, ctx):
-        snipes = self.get_snipes(ctx.channel.id)
-
-        if not snipes:
-            return await ctx.send("❌ No recently deleted messages found in this channel.")
-
-        view = SnipeView(snipes, ctx.author)
-        await ctx.send(embed=view.get_embed(), view=view)
-
-    # ❗ ERROR HANDLER
-    @snipe.error
-    async def snipe_error(self, ctx, error):
-        if isinstance(error, commands.CheckFailure):
-            await ctx.send("❌ You don't have permission (Manage Messages required).")
-        else:
-            await ctx.send(f"⚠️ An error occurred: `{error}`")
-
-async def setup(bot):
-    await bot.add_cog(Snipe(bot))
+            

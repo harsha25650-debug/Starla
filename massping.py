@@ -4,33 +4,31 @@ from discord import app_commands
 import asyncio
 import re
 
-# --- 🎭 CUSTOM EMOJIS ---
-E_NOM = "<a:bs_nom:1443239762197745790>"
-E_BUTTERFLY = "<a:lyf_butterfly_black:1515672700415246346>"
-E_DOT = "<a:spider_red_dot:1494179666133516411>"
-E_SUPREME = "<:trick_supreme:1433737084363083869>"
-E_GUAVA = "<a:Guava:1514950622586077354>"
-E_HEART = "<a:HEART:1438571571915522208>"
-E_HEART3 = "<a:Heart3:1434556967556350004>"
-E_MOD = "<:Moderator:1433718499791994892>"
-E_SWORD = "<:bd_sword:1495476833720729836>"
-E_VERIFIED = "<a:verified:1434044320830459935>"
-E_ROSE = "<:bd_rose:1510988383332204735>"
-E_GREENTICK = "<a:greentick:1494180392440303777>"
-
 class MassPing(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.active = {}         # Channel ID -> Boolean
         self.active_tasks = {}   # (channel_id, target_id) -> asyncio.Task
+        
+        # ✨ STARLA CUSTOM EMOJIS INTEGRATION
+        self.dot_pink = "<:topggDotPink:1525756454345375764>"
+        self.dot_green = "<:starlaDotGreen:1525756444782104597>"
+        self.dot_black = "<:starlaDotBlack:1525756435089063948>"
+        self.ico_info = "<:starla_ico_info:1525756986283524238>"
+        self.ico_mod = "<:starla_ico_mod:1525757006823161897>"
+        self.arrow = "<:starlalyf_arrowglow:1525757297475850320>"
+        
+        self.yes = "<:starla_opt_yes:1525757001664299102>"
+        self.no = "<:starla_opt_no:1525756996886986885>"
+        self.cross = "<:starlacross:1525756266604007464>"
 
     # =========================
     # 🕒 TIME PARSER FUNCTION
     # =========================
     def parse_time(self, time_str: str) -> int:
-        match = re.match(r"(\d+)\s*(s|sec|second|seconds|m|min|minute|minutes|h|hour|hours)", time_str.lower())
+        match = re.match(r"^(\d+)\s*(s|sec|second|seconds|m|min|minute|minutes|h|hour|hours)$", time_str.lower().strip())
         if not match:
-            raise ValueError("Invalid time format configuration. Use specifications like: `1m`, `5min`, `1h`.")
+            raise ValueError("Invalid time format configuration. Use formats like: `1m`, `5min`, `1h`.")
         
         value = int(match.group(1))
         unit = match.group(2)
@@ -42,7 +40,7 @@ class MassPing(commands.Cog):
         elif unit in ["h", "hour", "hours"]:
             return value * 3600
         else:
-            raise ValueError("Invalid network operational unit detected.")
+            raise ValueError("Invalid operational unit detected.")
 
     # =========================
     # 🔑 ACCESS & FIREWALL REGISTRY
@@ -94,17 +92,14 @@ class MassPing(commands.Cog):
     async def verify_target_safety(self, ctx, target: discord.User) -> bool:
         """Core Firewall: Ensures supreme developer security and checks whitelist exemptions."""
         if await self.bot.is_owner(target):
-            crown = self.bot.emojis_dict.get("devil_crown", "👑")
-            admin = self.bot.emojis_dict.get("air_admin", "🛡️")
             await ctx.reply(
-                f"{ crown } **Security Override Fault:** Target parameter points to the root software architect (**Harsh**). "
-                f"Defensive operational protocol triggered. Command execution permanently aborted. { admin }"
+                f"{self.cross} **Security Override Fault:** Target parameter points to the root software architect (**Harsh**).\n"
+                f"{self.arrow} Defensive operational protocol triggered. Command execution aborted."
             )
             return False
 
         if target.id in self.get_bypassed_users():
-            v = self.bot.emojis_dict.get("verified", "✅")
-            await ctx.reply(f"{ v} **Firewall Exception:** Targeted user `{target.name}` is registered in the secure whitelist configuration matrix.")
+            await ctx.reply(f"{self.yes} **Firewall Exception:** Targeted user `{target.name}` is registered in the secure whitelist configuration matrix.")
             return False
             
         return True
@@ -118,9 +113,9 @@ class MassPing(commands.Cog):
     @app_commands.allowed_installs(guilds=True, users=True)
     async def mpaccess(self, ctx, member: discord.User):
         if not await self.bot.is_owner(ctx.author):
-            return await ctx.reply(f"{E_DOT} Access denied. Root developer authorization failure.")
+            return await ctx.reply(f"{self.no} Access denied. Root developer authorization failure.")
         self.add_global_access(member.id)
-        await ctx.reply(f"{E_GREENTICK} Security privileges granted successfully to `{member.name}`.")
+        await ctx.reply(f"{self.yes} Security privileges granted successfully to `{member.name}`.")
 
     @commands.hybrid_command(name="mpremove", description="Revokes massping authorization from a user.")
     @app_commands.describe(member="The user to deauthorize")
@@ -128,40 +123,40 @@ class MassPing(commands.Cog):
     @app_commands.allowed_installs(guilds=True, users=True)
     async def mpremove(self, ctx, member: discord.User):
         if not await self.bot.is_owner(ctx.author):
-            return await ctx.reply(f"{E_DOT} Access denied. Privilege modification failure.")
+            return await ctx.reply(f"{self.no} Access denied. Privilege modification failure.")
         self.remove_global_access(member.id)
-        await ctx.reply(f"{E_DOT} Operational authorization revoked for `{member.name}`.")
+        await ctx.reply(f"{self.cross} Operational authorization revoked for `{member.name}`.")
 
-    @commands.hybrid_command(name="mpbypass", description="Owner Only: Adds a targeted user payload into the firewall bypass matrix.")
-    @app_commands.describe(member="The targeted user configuration to secure")
+    @commands.hybrid_command(name="mpbypass", description="Owner Only: Adds a user to the firewall bypass matrix.")
+    @app_commands.describe(member="The user to secure from pings")
     @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     @app_commands.allowed_installs(guilds=True, users=True)
     async def mpbypass(self, ctx, member: discord.User):
         if not await self.bot.is_owner(ctx.author):
-            return await ctx.reply(f"{E_DOT} Access denied. Restricted deployment sequence.")
+            return await ctx.reply(f"{self.no} Access denied. Restricted deployment sequence.")
         self.add_bypass_user(member.id)
-        await ctx.reply(f"{E_GREENTICK} **Bypassed User Registered:** Target `{member.name}` successfully secured from operational targeting modules.")
+        await ctx.reply(f"{self.yes} **Bypassed User Registered:** Target `{member.name}` successfully secured from targeting modules.")
 
-    @commands.hybrid_command(name="mpunbypass", description="Owner Only: Removes a targeted user configuration from the firewall bypass matrix.")
-    @app_commands.describe(member="The targeted user configuration to restore")
+    @commands.hybrid_command(name="mpunbypass", description="Owner Only: Removes a user from the firewall bypass matrix.")
+    @app_commands.describe(member="The user to restore")
     @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     @app_commands.allowed_installs(guilds=True, users=True)
     async def mpunbypass(self, ctx, member: discord.User):
         if not await self.bot.is_owner(ctx.author):
-            return await ctx.reply(f"{E_DOT} Access denied. Privileged argument context fault.")
+            return await ctx.reply(f"{self.no} Access denied. Privileged argument context fault.")
         self.remove_bypass_user(member.id)
-        await ctx.reply(f"{E_DOT} **Exemption Expired:** Target `{member.name}` removed from the secure whitelist database.")
+        await ctx.reply(f"{self.cross} **Exemption Expired:** Target `{member.name}` removed from the secure whitelist database.")
 
     # =========================
     # 🚀 MASSPING (FAST SINGLE)
     # =========================
-    @commands.hybrid_command(name="massping", description="Launches high-velocity sequential pings on a target.")
+    @commands.hybrid_command(name="massping", description="Launches sequential pings on a target.")
     @app_commands.describe(member="Target to bombard", amount="Total ping count (max 200)")
     @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     @app_commands.allowed_installs(guilds=True, users=True)
     async def massping(self, ctx, member: discord.User, amount: int):
         if not await self.check_permissions(ctx):
-            return await ctx.reply(f"{E_DOT} Unauthorized cluster action. Access denied.")
+            return await ctx.reply(f"{self.no} Unauthorized cluster action. Access denied.")
         if not await self.verify_target_safety(ctx, member):
             return
 
@@ -169,10 +164,10 @@ class MassPing(commands.Cog):
         channel_id = ctx.channel.id
         
         if self.active.get(channel_id):
-            return await ctx.reply("⚠️ A saturation sequence is currently active within this structural network channel.")
+            return await ctx.reply(f"{self.cross} A saturation sequence is currently active within this structural network channel.")
 
         self.active[channel_id] = True
-        await ctx.reply(f"{E_DOT} Initializing targeted frequency saturation matrix...")
+        await ctx.reply(f"{self.dot_pink} Initializing targeted frequency saturation matrix...")
 
         sent = 0
         while sent < amount:
@@ -193,7 +188,7 @@ class MassPing(commands.Cog):
                 break
 
         self.active[channel_id] = False
-        await ctx.send(f"{E_GREENTICK} Target cluster saturation sequence executed completely.")
+        await ctx.send(f"{self.dot_green} Target cluster saturation sequence executed completely.")
 
     # =========================
     # 👻 GHOSTPING (SILENT TROLL)
@@ -246,13 +241,13 @@ class MassPing(commands.Cog):
     # =========================
     # ⚡ FAST BURST
     # =========================
-    @commands.hybrid_command(name="mpfast", description="Dispatches a massive block of mentions in a single transmission.")
+    @commands.hybrid_command(name="mpfast", description="Dispatches a block of mentions in a single transmission.")
     @app_commands.describe(member="The target user", amount="Mentions payload (max 80)")
     @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     @app_commands.allowed_installs(guilds=True, users=True)
     async def mpfast(self, ctx, member: discord.User, amount: int):
         if not await self.check_permissions(ctx):
-            return await ctx.reply(f"{E_DOT} Unauthorized. Access parameters denied.", ephemeral=True)
+            return await ctx.reply(f"{self.no} Unauthorized. Access parameters denied.", ephemeral=True)
         if not await self.verify_target_safety(ctx, member):
             return
 
@@ -268,10 +263,10 @@ class MassPing(commands.Cog):
     @app_commands.allowed_installs(guilds=True, users=True)
     async def mpstop(self, ctx):
         if not await self.check_permissions(ctx):
-            return await ctx.reply(f"{E_DOT} Unauthorized command caller signature.", ephemeral=True)
+            return await ctx.reply(f"{self.no} Unauthorized command caller signature.", ephemeral=True)
             
         self.active[ctx.channel.id] = False
-        await ctx.reply(f"{E_GREENTICK} Sequential packet tracking sequences safely aborted within channel context.")
+        await ctx.reply(f"{self.yes} Sequential packet tracking sequences safely aborted within channel context.")
 
     # ==================================
     # 🎀 SUPERPINGS (LOOP TIME SCHEDULER)
@@ -280,7 +275,7 @@ class MassPing(commands.Cog):
         try:
             while True:
                 for _ in range(amount):
-                    await ctx.send(f"{member.mention} {E_SWORD} Target node localized. Operational sweep engaged.")
+                    await ctx.send(f"{member.mention} Target node localized. Operational sweep engaged.")
                     await asyncio.sleep(0.6)
                 await asyncio.sleep(interval)
         except asyncio.CancelledError:
@@ -292,19 +287,19 @@ class MassPing(commands.Cog):
     @app_commands.allowed_installs(guilds=True, users=True)
     async def superpings(self, ctx, member: discord.User, time_input: str, amount: int):
         if not await self.check_permissions(ctx):
-            return await ctx.reply(f"{E_DOT} Unauthorized network operational context.")
+            return await ctx.reply(f"{self.no} Unauthorized network operational context.")
         if not await self.verify_target_safety(ctx, member):
             return
 
         try:
             seconds = self.parse_time(time_input)
         except ValueError as e:
-            return await ctx.reply(f"{E_NOM} **Configuration Exception:** {str(e)}")
+            return await ctx.reply(f"{self.cross} **Configuration Exception:** {str(e)}")
 
         if seconds < 10:
-            return await ctx.reply(f"{E_NOM} **System Architecture Constraint:** Minimum loop frequency duration is set at 10 seconds.")
+            return await ctx.reply(f"{self.cross} **System Architecture Constraint:** Minimum loop frequency duration is set at 10 seconds.")
         if amount > 200:
-            return await ctx.reply(f"{E_NOM} **System Architecture Constraint:** Maximum loop block limits capped at 200.")
+            return await ctx.reply(f"{self.cross} **System Architecture Constraint:** Maximum loop block limits capped at 200.")
 
         channel_id = ctx.channel.id
         task_key = (channel_id, member.id)
@@ -316,16 +311,17 @@ class MassPing(commands.Cog):
         self.active_tasks[task_key] = task
 
         embed = discord.Embed(
-            title=f"{E_VERIFIED} Automation Sequence Synchronized - Loop Active",
-            description=f"Persistent diagnostic loop scheduling sequence successfully operational. {E_ROSE}",
-            color=discord.Color.from_rgb(47, 49, 54)
+            title=f"{self.ico_info} Automation Sequence Synchronized",
+            description=f"{self.dot_pink} **Persistent loop scheduling sequence successfully operational.**",
+            color=0x2b2d31
         )
-        embed.add_field(name="🎯 Structural Target", value=member.mention, inline=True)
-        embed.add_field(name="🕒 Loop Frequency", value=f"`{time_input}` ({seconds}s)", inline=True)
-        embed.add_field(name="⚡ Burst Payload Volume", value=f"`{amount}` transmissions", inline=True)
+        embed.add_field(name="Target Node", value=f"{self.arrow} {member.mention}", inline=True)
+        embed.add_field(name="Frequency", value=f"{self.arrow} `{time_input}` ({seconds}s)", inline=True)
+        embed.add_field(name="Payload Volume", value=f"{self.arrow} `{amount}` pings/loop", inline=True)
         
         p = ctx.prefix if ctx.prefix else "!"
-        embed.set_footer(text=f"Abort operational sequence: {p}stopsuperpings {member.name}", icon_url=ctx.author.display_avatar.url)
+        embed.set_footer(text=f"Abort sequence: {p}stopsuperpings {member.name}", icon_url=ctx.author.display_avatar.url)
+        embed.timestamp = discord.utils.utcnow()
         
         await ctx.send(embed=embed)
 
@@ -338,7 +334,7 @@ class MassPing(commands.Cog):
     @app_commands.allowed_installs(guilds=True, users=True)
     async def stopsuperpings(self, ctx, member: discord.User = None):
         if not await self.check_permissions(ctx):
-            return await ctx.reply(f"{E_DOT} Unauthorized. Operations access denied.")
+            return await ctx.reply(f"{self.no} Unauthorized. Operations access denied.")
 
         channel_id = ctx.channel.id
 
@@ -349,13 +345,13 @@ class MassPing(commands.Cog):
                 del self.active_tasks[task_key]
 
                 embed = discord.Embed(
-                    title=f"🛑 Target Node Released",
-                    description=f"Automated loops terminated for user target {member.mention}. Tracking off. {E_BUTTERFLY}",
-                    color=discord.Color.from_rgb(47, 49, 54)
+                    title="🛑 Target Node Released",
+                    description=f"{self.dot_black} Automated loops terminated for user target {member.mention}.",
+                    color=0x2b2d31
                 )
                 await ctx.send(embed=embed)
             else:
-                await ctx.reply(f"{E_NOM} No operational tracking parameters detected for {member.mention} inside this specific node sector.")
+                await ctx.reply(f"{self.cross} No operational tracking parameters detected for {member.mention} inside this sector.")
 
         else:
             keys_to_remove = [key for key in self.active_tasks.keys() if key[0] == channel_id]
@@ -365,14 +361,14 @@ class MassPing(commands.Cog):
                     del self.active_tasks[key]
 
                 embed = discord.Embed(
-                    title=f"🛑 Forced Channel Cleared",
-                    description=f"All background cluster scheduling loop nodes in this channel have been explicitly terminated. {E_BUTTERFLY}",
-                    color=discord.Color.from_rgb(47, 49, 54)
+                    title="🛑 Forced Channel Cleared",
+                    description=f"{self.dot_black} All background cluster scheduling loop nodes in this channel have been explicitly terminated.",
+                    color=0x2b2d31
                 )
                 await ctx.send(embed=embed)
             else:
-                await ctx.reply(f"{E_NOM} No background active tracking tasks found active in this channel zone.")
+                await ctx.reply(f"{self.cross} No background active tracking tasks found active in this channel zone.")
 
 async def setup(bot):
     await bot.add_cog(MassPing(bot))
-    
+            

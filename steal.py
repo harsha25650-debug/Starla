@@ -2,140 +2,146 @@ import discord
 from discord.ext import commands
 import aiohttp
 import asyncio
+import re
 
 class Steal(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        # Custom Emojis Config
-        self.loading_icon = "<a:spider_red_dot:1494179666133516411>"
-        self.success_icon = "<a:greentick:1494180392440303777>"
-        self.cross_icon = "<a:spider_cross:1494181311525687347>"
+        # ✨ STARLA CUSTOM EMOJIS INTEGRATION
+        self.dot_green = "<:starlaDotGreen:1525756444782104597>"
+        self.dot_black = "<:starlaDotBlack:1525756435089063948>"
+        self.ico_info = "<:starla_ico_info:1525756986283524238>"
+        self.arrow = "<:starlalyf_arrowglow:1525757297475850320>"
+        
+        self.yes = "<:starla_opt_yes:1525757001664299102>"
+        self.no = "<:starla_opt_no:1525756996886986885>"
+        self.cross = "<:starlacross:1525756266604007464>"
 
     # 🔐 PERMISSION CHECK
     def can_manage_expressions():
         async def predicate(ctx):
             if ctx.author.id == ctx.bot.owner_id or ctx.author.id == ctx.guild.owner_id:
                 return True
-            
             if ctx.author.guild_permissions.manage_expressions:
                 return True
-            
-            # Custom Error if permission check fails
-            cross = "<a:spider_cross:1494181311525687347>"
-            embed = discord.Embed(
-                description=f"{cross} **Access denied | owner/premiumUser only command**", 
-                color=0x000000
-            )
-            await ctx.send(embed=embed)
             return False
         return commands.check(predicate)
 
-    @commands.command(name="steal")
+    # 📥 HELPER FUNCTION TO DOWNLOAD & ADD EMOJI
+    async def process_emoji(self, ctx, session, is_animated, name, emoji_id):
+        ext = "gif" if is_animated else "png"
+        url = f"https://cdn.discordapp.com/emojis/{emoji_id}.{ext}"
+        try:
+            async with session.get(url) as resp:
+                if resp.status != 200:
+                    return None
+                img = await resp.read()
+            
+            new_emoji = await ctx.guild.create_custom_emoji(
+                name=name, image=img, reason=f"Stealed by {ctx.author}"
+            )
+            return new_emoji
+        except Exception:
+            return None
+
+    @commands.command(name="steal", description="Steal multiple emojis via arguments or by replying to a message")
     @can_manage_expressions()
     @commands.bot_has_permissions(manage_expressions=True)
-    async def steal(self, ctx):
-        # 1. Check for reply
-        if not ctx.message.reference:
+    async def steal(self, ctx, *, args: str = None):
+        target_content = ""
+
+        # 1. Check if user replied to a message
+        if ctx.message.reference:
+            replied_msg = await ctx.channel.fetch_message(ctx.message.reference.message_id)
+            target_content += replied_msg.content
+            
+            # Stickers Extraction Fallback (If any)
+            if replied_msg.stickers:
+                sticker = replied_msg.stickers[0]
+                # Quick Sticker Process (Since stickers can only be added one by one)
+                status_msg = await ctx.send(f"{self.dot_black} Processing sticker asset...")
+                try:
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(sticker.url) as resp:
+                            img = await resp.read()
+                    new_sticker = await ctx.guild.create_sticker(
+                        name=sticker.name, description="Stolen Sticker", emoji="😎", file=discord.File(fp=discord.BytesIO(img), filename="sticker.png"), reason=f"Stolen by {ctx.author}"
+                    )
+                    return await status_msg.edit(content=f"{self.yes} **Sticker Stolen Successfully!** | {new_sticker.name}")
+                except Exception as e:
+                    return await status_msg.edit(content=f"{self.cross} **Sticker Error:** `{e}`")
+
+        # 2. Append direct command arguments if present
+        if args:
+            target_content += " " + args
+
+        if not target_content.strip():
             embed = discord.Embed(
-                description=f"{self.cross_icon} **Please reply to a message with an emoji/sticker**", 
-                color=0x000000
+                description=f"{self.cross} **Usage Error:** Provide emojis after the command or reply to an emoji message.",
+                color=0x2b2d31
             )
             return await ctx.send(embed=embed)
 
-        replied_msg = await ctx.channel.fetch_message(ctx.message.reference.message_id)
+        # 3. Regex parser to extract ALL custom emojis inside string block
+        custom_emojis = re.findall(r"<(a?):(\w+):(\d+)>", target_content)
+
+        if not custom_emojis:
+            embed = discord.Embed(description=f"{self.cross} **No stealable custom emoji assets found.**", color=0x2b2d31)
+            return await ctx.send(embed=embed)
+
+        # Remove duplicate emojis from the list to avoid double addition
+        custom_emojis = list(dict.fromkeys(custom_emojis))
+
+        status_embed = discord.Embed(
+            description=f"{self.dot_black} **Extracting and processing `{len(custom_emojis)}` emoji assets...**",
+            color=0x2b2d31
+        )
+        status_msg = await ctx.send(embed=status_embed)
+
+        successful_emojis = []
+        failed_count = 0
+
+        async with aiohttp.ClientSession() as session:
+            for is_anim, name, emoji_id in custom_emojis:
+                added_emoji = await self.process_emoji(ctx, session, is_anim, name, emoji_id)
+                if added_emoji:
+                    successful_emojis.append(str(added_emoji))
+                else:
+                    failed_count += 1
+                await asyncio.sleep(0.5) # Rate limit security delay
+
+        # 4. FINAL SUCCESS RESPONSE EMBED
+        final_embed = discord.Embed(
+            title=f"{self.ico_info} Asset Stealer Output",
+            color=0x2b2d31
+        )
         
-        emoji_data = None
-        sticker_data = None
+        if successful_emojis:
+            emoji_chain = " ".join(successful_emojis)
+            final_embed.description = f"{self.dot_green} **Successfully added {len(successful_emojis)} emoji(s):**\n\n{emoji_chain}"
+        else:
+            final_embed.description = f"{self.cross} **Failed to steal emoji assets.** Guild limits might be full."
 
-        # 2. Extract Data
-        if "<" in replied_msg.content and ":" in replied_msg.content:
-            import re
-            match = re.search(r"<(a?):(\w+):(\d+)>", replied_msg.content)
-            if match:
-                ext = "gif" if match.group(1) else "png"
-                emoji_data = {
-                    "name": match.group(2), 
-                    "url": f"https://cdn.discordapp.com/emojis/{match.group(3)}.{ext}"
-                }
+        if failed_count > 0:
+            final_embed.add_field(name="Failed Operations", value=f"{self.arrow} `{failed_count}` assets skipped/failed.", inline=False)
 
-        if replied_msg.stickers:
-            sticker = replied_msg.stickers[0]
-            sticker_data = {"name": sticker.name, "url": sticker.url}
+        final_embed.set_footer(text=f"Action by {ctx.author.name}", icon_url=ctx.author.display_avatar.url)
+        await status_msg.edit(embed=final_embed)
 
-        if not emoji_data and not sticker_data:
-            embed = discord.Embed(description=f"{self.cross_icon} **No stealable asset found**", color=0x000000)
-            return await ctx.send(embed=embed)
-
-        # 3. Initial Embed
-        embed = discord.Embed(title="Asset Stealer", description="Choose an action below", color=0x000000)
-        if emoji_data: embed.set_thumbnail(url=emoji_data['url'])
-        elif sticker_data: embed.set_thumbnail(url=sticker_data['url'])
-
-        view = StealView(emoji_data, sticker_data, ctx.author, self.loading_icon, self.success_icon, self.cross_icon)
-        await ctx.send(embed=embed, view=view)
-
-# 🔘 UPDATED VIEW
-class StealView(discord.ui.View):
-    def __init__(self, emoji_data, sticker_data, user, loading, success, cross):
-        super().__init__(timeout=60)
-        self.emoji_data = emoji_data
-        self.sticker_data = sticker_data
-        self.user = user
-        self.loading = loading
-        self.success = success
-        self.cross = cross
-
-    async def interaction_check(self, interaction: discord.Interaction):
-        if interaction.user != self.user:
-            await interaction.response.send_message(f"{self.cross} This menu is not for you.", ephemeral=True)
-            return False
-        return True
-
-    @discord.ui.button(label="Steal Emoji", style=discord.ButtonStyle.secondary)
-    async def steal_emoji(self, interaction: discord.Interaction, button):
-        await interaction.response.edit_message(
-            embed=discord.Embed(description=f"{self.loading} **Stealing...**", color=0x000000), 
-            view=None
-        )
-        await asyncio.sleep(2)
-
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(self.emoji_data['url']) as resp:
-                    img = await resp.read()
-            
-            new_emoji = await interaction.guild.create_custom_emoji(
-                name=self.emoji_data['name'], image=img, reason=f"Stolen by {self.user}"
+    # ❗ CLEAN PERMISSION ERROR HANDLER
+    @steal.error
+    async def steal_error_handler(self, ctx, error):
+        if isinstance(error, commands.CheckFailure):
+            embed = discord.Embed(
+                description=f"{self.no} **Access Denied:** You need `Manage Expressions` permission to steal assets.", 
+                color=0x2b2d31
             )
-            await interaction.edit_original_response(
-                embed=discord.Embed(description=f"{self.success} **Added Successfully!** {new_emoji}", color=0x000000)
-            )
-        except Exception as e:
-            await interaction.followup.send(embed=discord.Embed(description=f"{self.cross} **Error:** `{e}`", color=0x000000))
-
-    @discord.ui.button(label="Steal Sticker", style=discord.ButtonStyle.secondary)
-    async def steal_sticker(self, interaction: discord.Interaction, button):
-        await interaction.response.edit_message(
-            embed=discord.Embed(description=f"{self.loading} **Stealing...**", color=0x000000), 
-            view=None
-        )
-        await asyncio.sleep(2)
-
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(self.sticker_data['url']) as resp:
-                    img = await resp.read()
-            
-            with open("stolen.png", "wb") as f: f.write(img)
-            await interaction.guild.create_sticker(
-                name=self.sticker_data['name'], description="Stolen", emoji="😎", file=discord.File("stolen.png")
-            )
-            await interaction.edit_original_response(
-                embed=discord.Embed(description=f"{self.success} **Sticker Added Successfully!**", color=0x000000)
-            )
-        except Exception as e:
-            await interaction.followup.send(embed=discord.Embed(description=f"{self.cross} **Error:** `{e}`", color=0x000000))
+            await ctx.send(embed=embed, ephemeral=True)
+        elif isinstance(error, commands.BotMissingPermissions):
+            await ctx.send(f"{self.cross} I am missing `Manage Expressions` slots authority.")
+        else:
+            await ctx.send(f"{self.cross} **An error occurred:** `{error}`")
 
 async def setup(bot):
     await bot.add_cog(Steal(bot))
-  
+                    

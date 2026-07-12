@@ -2,19 +2,7 @@ import discord
 import os
 import json
 from discord.ext import commands
-
-# --- 🎭 CUSTOM EMOJIS ---
-E_NOM = "<a:bs_nom:1443239762197745790>"
-E_BUTTERFLY = "<a:lyf_butterfly_black:1515672700415246346>"
-E_DOT = "<a:spider_red_dot:1494179666133516411>"
-E_SUPREME = "<:trick_supreme:1433737084363083869>"
-E_GUAVA = "<a:Guava:1514950622586077354>"
-E_HEART = "<a:HEART:1438571571915522208>"
-E_HEART3 = "<a:Heart3:1434556967556350004>"
-E_MOD = "<:Moderator:1433718499791994892>"
-E_SWORD = "<:bd_sword:1495476833720729836>"
-E_VERIFIED = "<a:verified:1434044320830459935>"
-E_ROSE = "<:bd_rose:1510988383332204735>"
+import datetime
 
 # --- 🖼️ DEFAULT BANNER URL ---
 DEFAULT_BANNER_URL = "https://i.imgur.com/k9b8fU6.gif"
@@ -24,10 +12,15 @@ class HelpDropdown(discord.ui.Select):
         self.bot = bot
         self.prefix = guild_prefix
 
+        # ✨ STARLA THEMED ICONS MAPPING FOR OPTIONS
+        self.ico_mod = "<:starla_ico_mod:1525757006823161897>"
+        self.ico_chat = "<:starla_ico_chat:1525757016461545615>"
+        self.ico_info = "<:starla_ico_info:1525756986283524238>"
+
         options = [
-            discord.SelectOption(label="Moderation", description="Security and guild protection utilities.", emoji=E_SWORD),
-            discord.SelectOption(label="Utility", description="General framework service parameters.", emoji=E_SUPREME),
-            discord.SelectOption(label="Management", description="Core guild configuration protocols.", emoji=E_MOD),
+            discord.SelectOption(label="Moderation", description="Security and member punishment utilities.", emoji=self.ico_mod),
+            discord.SelectOption(label="Utility & Management", description="Core guild config & developer tools.", emoji=self.ico_info),
+            discord.SelectOption(label="Fun & Saturation", description="Massping and chat extraction functions.", emoji=self.ico_chat),
             discord.SelectOption(label="Main Index", description="Return to home dashboard.", emoji="🏠"),
         ]
 
@@ -39,7 +32,14 @@ class HelpDropdown(discord.ui.Select):
         )
 
     async def callback(self, interaction: discord.Interaction):
-        embed = discord.Embed(color=discord.Color.from_rgb(47, 49, 54))
+        # View se components dynamic extract karenge
+        dot_red = self.view.dot_red
+        dot_blue = self.view.dot_blue
+        dot_pink = self.view.dot_pink
+        arrow = self.view.arrow
+        ico_info = self.view.ico_info
+        
+        embed = discord.Embed(color=0x2b2d31)
         p = self.prefix
 
         if self.bot.user.avatar:
@@ -55,42 +55,46 @@ class HelpDropdown(discord.ui.Select):
         embed.set_image(url=banner_url)
 
         if self.values[0] == "Moderation":
-            embed.title = f"{E_SWORD} System Security Operations Center"
+            embed.title = f"<:starla_ico_mod:1525757006823161897> Security Operations Center"
             embed.description = (
-                f"{E_DOT} *Enforcing network protection parameters and guild policies.* {E_NOM}\n"
+                f"{dot_red} **Enforcing server protection policies and protocols.**\n\n"
                 f"```ansi\n"
-                f"\u001b[0;31m{p}ban\u001b[0m    : Restrict user access permanently\n"
-                f"\u001b[0;31m{p}unban\u001b[0m  : Revoke standard guild ban via User ID\n"
-                f"\u001b[0;31m{p}kick\u001b[0m   : Remove user from active guild node\n"
-                f"\u001b[0;31m{p}mute\u001b[0m   : Apply global communication timeout\n"
-                f"\u001b[0;31m{p}unmute\u001b[0m : Clear communication timeout status\n"
-                f"\u001b[0;31m{p}clear\u001b[0m  : Purge targeted messages from text channel\n"
+                f"\u001b[0;31m{p}ban\u001b[0m       : {p}ban <@user> [reason]\n"
+                f"\u001b[0;31m{p}unban\u001b[0m     : {p}unban <user_id> [reason]\n"
+                f"\u001b[0;31m{p}kick\u001b[0m      : {p}kick <@user> [reason]\n"
+                f"\u001b[0;31m{p}mute\u001b[0m      : {p}mute <@user> [duration] [reason]\n"
+                f"\u001b[0;31m{p}clear\u001b[0m     : {p}clear <amount> [@user]\n"
+                f"\u001b[0;31m{p}snipe\u001b[0m     : View recently deleted chat blocks\n"
+                f"```\n"
+                f"{arrow} *Mute durations can be parsed in intervals like `10m`, `2h`, `1d`.*"
+            )
+
+        elif self.values[0] == "Utility & Management":
+            embed.title = f"{ico_info} Management & Diagnostics Core"
+            embed.description = (
+                f"{dot_blue} **Structural configuration modules for staff members.**\n\n"
+                f"```ansi\n"
+                f"\u001b[0;34m{p}role\u001b[0m      : {p}role <@user> <@role> (Toggles Role)\n"
+                f"\u001b[0;34m{p}roleicon\u001b[0m  : {p}roleicon <@role> [emoji/link/reply]\n"
+                f"\u001b[0;34m{p}nick\u001b[0m      : {p}nick <@user> [New Name] (Leave empty to reset)\n"
+                f"\u001b[0;34m{p}case\u001b[0m      : {p}case <case_id> (Audits DB logs)\n"
+                f"\u001b[0;34m{p}restart\u001b[0m   : Safely reloads bot process (Owner Only)\n"
                 f"```"
             )
 
-        elif self.values[0] == "Utility":
-            embed.title = f"{E_SUPREME} Framework General Utility Interface"
+        elif self.values[0] == "Fun & Saturation":
+            embed.title = f"<:starla_ico_chat:1525757016461545615> Network Saturation & Fun Pack"
             embed.description = (
-                f"{E_BUTTERFLY} *Standard diagnostic protocols and general features.* {E_GUAVA}\n"
+                f"{dot_pink} **High-velocity cluster utilities and media actions.**\n\n"
                 f"```ansi\n"
-                f"\u001b[0;34m{p}afk\u001b[0m    : Toggle status to away from keyboard\n"
-                f"\u001b[0;34m{p}say\u001b[0m    : Execute system text message broadcast\n"
-                f"\u001b[0;34m{p}dm\u001b[0m     : Transmit private direct message to target\n"
-                f"\u001b[0;34m{p}ping\u001b[0m   : Analyze gateway response latency parameters\n"
-                f"\u001b[0;34m{p}help\u001b[0m   : Display framework navigation directory\n"
-                f"```"
-            )
-
-        elif self.values[0] == "Management":
-            embed.title = f"{E_MOD} Structural Management Dashboard"
-            embed.description = (
-                f"{E_VERIFIED} *Configure guild rules, administrative tags, and logs.* {E_HEART}\n"
-                f"```ansi\n"
-                f"\u001b[0;35m{p}setprefix\u001b[0m : Reconfigure structural command prefix\n"
-                f"\u001b[0;35m{p}role add\u001b[0m   : Assign targeted structural role configuration\n"
-                f"\u001b[0;35m{p}role rem\u001b[0m   : Strip targeted structural role configuration\n"
-                f"\u001b[0;35m{p}case\u001b[0m       : Audit specified action incident records\n"
-                f"```"
+                f"\u001b[0;35m{p}steal\u001b[0m       : {p}steal :emoji: [Or reply to messages]\n"
+                f"\u001b[0;35m{p}spam\u001b[0m        : {p}spam <message> <amount>\n"
+                f"\u001b[0;35m{p}spstop\u001b[0m      : Terminates channel active spam loops\n"
+                f"\u001b[0;35m{p}massping\u001b[0m    : Mentions target in sequence (Max 200)\n"
+                f"\u001b[0;35m{p}ghostping\u001b[0m   : Quietly pings user and purges logs\n"
+                f"\u001b[0;35m{p}superpings\u001b[0m  : Scheduled loop mentions (e.g. 10m 50)\n"
+                f"```\n"
+                f"{arrow} *Access rights for spam/ping tools managed by `{p}spaccess` & `{p}mpaccess`.*"
             )
 
         else:
@@ -98,9 +102,10 @@ class HelpDropdown(discord.ui.Select):
             return
 
         embed.set_footer(
-            text=f"Queried by: {interaction.user} {E_HEART3}",
+            text=f"Queried by: {interaction.user.name}",
             icon_url=interaction.user.display_avatar.url
         )
+        embed.timestamp = datetime.datetime.now(datetime.timezone.utc)
 
         await interaction.response.edit_message(embed=embed, view=self.view)
 
@@ -110,14 +115,27 @@ class HelpView(discord.ui.View):
         super().__init__(timeout=180)
         self.bot = bot
         self.main_embed = main_embed
+        
+        # Share Starla parameters down to selection components
+        self.dot_red = "<:starlaDotRed:1525756464692596886>"
+        self.dot_blue = "<:starlaDotBlue:1525756437224099862>"
+        self.dot_pink = "<:topggDotPink:1525756444782104597>"
+        self.arrow = "<:starlalyf_arrowglow:1525757297475850320>"
+        self.ico_info = "<:starla_ico_info:1525756986283524238>"
+        
         self.add_item(HelpDropdown(bot, guild_prefix))
 
 
 class Help(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        # ✨ MAIN STORAGE STRINGS
+        self.dot_black = "<:starlaDotBlack:1525756435089063948>"
+        self.ico_info = "<:starla_ico_info:1525756986283524238>"
+        self.arrow = "<:starlalyf_arrowglow:1525757297475850320>"
+        self.yes = "<:starla_opt_yes:1525757001664299102>"
 
-    @commands.hybrid_command(name="help", description="Access the configuration matrix directory.")
+    @commands.hybrid_command(name="help", description="Access the NovaX system command directory grid matrix.")
     async def help(self, ctx: commands.Context):
         guild_prefix = "!"
         prefix_file = "./data/prefixes.json"
@@ -132,10 +150,11 @@ class Help(commands.Cog):
 
         p = guild_prefix
 
+        # Main Home Dashboard Setup
         embed = discord.Embed(
-            title=f"{E_VERIFIED} Starla Operational Command Matrix",
-            description=f"Welcome to the automated control hub. {E_BUTTERFLY} Utilize the selection drop-down parameters mapped below to view detailed operation arguments. {E_ROSE}",
-            color=discord.Color.from_rgb(47, 49, 54)
+            title=f"{self.yes} NovaX Control Terminal Dashboard",
+            description=f"Welcome to the automated control hub. Use the selection drop-down matrix mapped below to review explicit operation parameters.",
+            color=0x2b2d31
         )
 
         if self.bot.user.avatar:
@@ -150,17 +169,19 @@ class Help(commands.Cog):
             pass
         embed.set_image(url=banner_url)
 
-        embed.add_field(name=f"{E_SWORD} Security Operations", value="`ban`, `kick`, `mute`, `clear`", inline=True)
-        embed.add_field(name=f"{E_SUPREME} General Utilities", value="`afk`, `say`, `dm`, `ping`", inline=True)
-        embed.add_field(name=f"{E_MOD} Structural Admin", value="`role`, `setprefix`, `case`", inline=True)
+        # Categorized Grid Fields matching actual module filenames
+        embed.add_field(name="🛡️ Security Ops", value="`ban`, `unban`, `kick`, `mute`, `clear`, `snipe`", inline=True)
+        embed.add_field(name=f"{self.ico_info} Management Core", value="`role`, `roleicon`, `nick`, `case`, `restart`", inline=True)
+        embed.add_field(name="⚡ Saturation Systems", value="`steal`, `spam`, `massping`, `ghostping`, `superpings`", inline=False)
 
         embed.add_field(
-            name=f"{E_NOM} Operational Execution Guide",
-            value=f"Trigger explicit system calls via `{p}help` or initialize drop-down tracking down below. {E_GUAVA}",
+            name="💡 Operational Guideline",
+            value=f"{self.arrow} Open the drop-down box down below to display advanced argument formats for each distinct category.",
             inline=False
         )
 
-        embed.set_footer(text=f"Starla Secure Framework Core Operations • Status: Operational {E_HEART}")
+        embed.set_footer(text="NovaX Automation Security Engine • Status: Operational", icon_url=ctx.author.display_avatar.url)
+        embed.timestamp = datetime.datetime.now(datetime.timezone.utc)
 
         view = HelpView(self.bot, p, embed)
 
@@ -172,4 +193,4 @@ class Help(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(Help(bot))
-        
+            

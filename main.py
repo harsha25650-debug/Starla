@@ -1,4 +1,4 @@
-import discord
+import discord  # Fixed lowercase import syntax
 import os
 import asyncio
 import json
@@ -9,6 +9,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 from discord.ext import commands, tasks
 from discord import Streaming, app_commands
+import datetime
 
 logging.basicConfig(level=logging.INFO)
 
@@ -208,38 +209,42 @@ class CoreCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    # --- 🏓 HYBRID PING COMMAND ---
+    # --- 🏓 UPGRADED HYBRID PING COMMAND (Starla Theme) ---
     @commands.hybrid_command(name="ping", description="Checks the application system responsiveness metrics.")
     @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     @app_commands.allowed_installs(guilds=True, users=True)
     async def ping(self, ctx):
-        dot = self.bot.emojis_dict["spider_red_dot"]
-        cross = self.bot.emojis_dict["spider_cross"]
-        sword = self.bot.emojis_dict["bd_sword"]
-        f_blue = self.bot.emojis_dict["fire_light_blue"]
-        f_purple = self.bot.emojis_dict["fire_purple"]
-        
-        await ctx.defer()
+        dot_black = "<:starlaDotBlack:1525756435089063948>"
+        dot_green = "<:starlaDotGreen:1525756444782104597>"
+        ico_info = "<:starla_ico_info:1525756986283524238>"
+        arrow = "<:starlalyf_arrowglow:1525757297475850320>"
         
         start_time = asyncio.get_event_loop().time()
-        msg = await ctx.send(f"{dot} *Executing asynchronous system diagnostic handshakes...*")
+        msg = await ctx.send(f"{dot_black} *Executing latency diagnostic handshakes...*")
         end_time = asyncio.get_event_loop().time()
         
         rest_latency = round((end_time - start_time) * 1000)
         websocket_latency = round(self.bot.latency * 1000)
         
+        status_dot = dot_green if rest_latency < 200 else "<:starlaDotRed:1525756464692596886>"
+
         embed = discord.Embed(
-            title=f"{cross} Core Diagnostic Matrix Status",
-            color=discord.Color.from_rgb(47, 49, 54),
-            description="System nodes and execution clusters operating inside safe operational bounds."
+            title=f"{ico_info} Starla Core Latency Analytics",
+            description=f"{status_dot} **System execution clusters operating smoothly.**",
+            color=0x2b2d31
         )
-        embed.add_field(name=f"{f_blue} WebSocket Protocol", value=f"```ansi\n\u001b[2;34m{websocket_latency}ms\u001b[0m\n```", inline=True)
-        embed.add_field(name=f"{f_purple} Gateway REST API", value=f"```ansi\n\u001b[2;35m{rest_latency}ms\u001b[0m\n```", inline=True)
+        embed.add_field(
+            name="Latency Metrics", 
+            value=f"{arrow} **WebSocket:** `{websocket_latency}ms`\n"
+                  f"{arrow} **REST API:** `{rest_latency}ms`", 
+            inline=False
+        )
         
         avatar_url = ctx.author.display_avatar.url if ctx.author else None
-        embed.set_footer(text="Starla Secure Framework Core Execution Engine", icon_url=avatar_url)
+        embed.set_footer(text=f"Requested by {ctx.author.name}", icon_url=avatar_url)
+        embed.timestamp = datetime.datetime.now(datetime.timezone.utc)
         
-        await msg.edit(content=f"{sword} **System Analytics Fetched:**", embed=embed)
+        await msg.edit(content=None, embed=embed)
 
     # --- 📑 HYBRID SERVER LIST COMMAND ---
     @commands.hybrid_command(name="serverlist", description="Owner Only: Displays connected cluster network guild items.")
@@ -259,7 +264,7 @@ class CoreCommands(commands.Cog):
             return
 
         msg_list = []
-        current_msg = f"{admin} **Connected Network Guild Infrastructures ({len(bot.guilds)}):**\n\n"
+        current_msg = f"{admin} **Connected Network Guild Infrastructures ({len(self.bot.guilds)}):**\n\n"
         
         for i, guild in enumerate(self.bot.guilds, 1):
             line = f"{sword} `{i:02d}.` **{guild.name}** (ID: `{guild.id}`) │ Structural Node Count: `{guild.member_count}` {f_white}\n"

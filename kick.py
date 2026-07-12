@@ -6,16 +6,18 @@ import datetime
 class Kick(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        # Custom Icons
-        self.caution = "<:spider_okjinwoo:1494216934613319691>"
-        self.loading = "<a:spider_red_dot:1494179666133516411>"
-        self.success = "<a:greentick:1494180392440303777>"
-        self.cross = "<a:spider_cross:1494181311525687347>"
+        # ✨ STARLA CUSTOM EMOJIS INTEGRATION
+        self.dot_orange = "<:starlaDotOrange:1525756452487168121>"
+        self.ico_bonk = "<:starla_ico_bonk:1525756094776082523>"
+        self.ico_info = "<:starla_ico_info:1525756986283524238>"
+        self.arrow = "<:starlalyf_arrowglow:1525757297475850320>"
+        
+        self.no = "<:starla_opt_no:1525756996886986885>"
+        self.cross = "<:starlacross:1525756266604007464>"
 
     # 🔐 STANDARDIZED PERMISSION CHECK
     def has_kick_perms():
         async def predicate(ctx):
-            # Allow Bot Owner, Server Owner, or users with Administrator/Kick Members
             if ctx.author.id == ctx.bot.owner_id or ctx.author.id == ctx.guild.owner_id:
                 return True
             perms = ctx.author.guild_permissions
@@ -49,38 +51,50 @@ class Kick(commands.Cog):
 
         # 🚨 HIERARCHY & SAFETY CHECKS
         if member.id == ctx.author.id:
-            return await ctx.send(f"{self.cross} You cannot kick yourself.")
+            return await ctx.send(f"{self.cross} **Error:** You cannot kick yourself.")
 
         if member.id == ctx.guild.owner_id:
-            return await ctx.send(f"{self.cross} You cannot kick the Server Owner.")
+            return await ctx.send(f"{self.cross} **Error:** You cannot kick the Server Owner.")
 
+        # Executor vs Target Hierarchy check
+        if ctx.author.id != ctx.guild.owner_id and member.top_role >= ctx.author.top_role:
+            return await ctx.send(f"{self.cross} **Hierarchy Error:** You cannot kick someone with a higher or equal role.")
+
+        # Bot vs Target Hierarchy check
         if member.top_role >= ctx.guild.me.top_role:
-            return await ctx.send(f"{self.cross} **Hierarchy Error:** My role must be higher than this user.")
+            return await ctx.send(f"{self.cross} **Hierarchy Error:** My role must be higher than this user to kick them.")
 
         case_id = self.get_next_case(ctx.guild.id)
 
-        # 📩 DM (Using requested OkJinwoo emoji)
+        # 📩 DM NOTIFICATION (Sleek Clean Style)
         try:
-            await member.send(
-                f"{self.caution} **You were kicked from {ctx.guild.name}**\n"
-                f"**Reason:** {reason}\n"
-                f"**Case:** #{case_id}"
+            dm_embed = discord.Embed(
+                title=f"{self.ico_bonk} Kicked from {ctx.guild.name}",
+                description=f"{self.arrow} **Reason:** {reason}\n{self.arrow} **Case ID:** #{case_id}",
+                color=0xffa500
             )
+            await member.send(embed=dm_embed)
         except:
-            pass
+            pass  # User ke DMs close ho sakte hain
 
         try:
             await member.kick(reason=f"Case #{case_id} | {reason}")
             self.save_case(ctx.guild.id, case_id, "Kick", member, ctx.author, reason)
 
-            # 📢 RESPONSE (Black Embed)
+            # 📢 SUCCESS RESPONSE EMBED (Sleek Modern Dark)
             embed = discord.Embed(
-                description=f"{self.loading} **{member.mention} has been kicked**",
-                color=0x000000
+                description=f"{self.dot_orange} **{member.mention} has been kicked from the server**",
+                color=0x2b2d31
             )
-            embed.add_field(name="Reason", value=reason, inline=False)
-            embed.add_field(name="Case ID", value=f"#{case_id}", inline=True)
-            embed.set_footer(text=f"Action by {ctx.author}", icon_url=ctx.author.display_avatar.url)
+            embed.add_field(
+                name=f"{self.ico_info} Details", 
+                value=f"{self.arrow} **Moderator:** {ctx.author.mention}\n"
+                      f"{self.arrow} **Reason:** {reason}\n"
+                      f"{self.arrow} **Case ID:** `#{case_id}`", 
+                inline=False
+            )
+            embed.set_footer(text=f"Action taken by {ctx.author.name}", icon_url=ctx.author.display_avatar.url)
+            embed.timestamp = datetime.datetime.now(datetime.timezone.utc)
 
             await ctx.send(embed=embed)
 
@@ -89,21 +103,22 @@ class Kick(commands.Cog):
         except Exception as e:
             await ctx.send(f"{self.cross} **Error:** `{e}`")
 
-    # ❗ ERROR HANDLER
+    # ❗ CLEAN UPGRADED ERROR HANDLER
     @kick.error
     async def kick_error(self, ctx, error):
         if isinstance(error, commands.CheckFailure):
             embed = discord.Embed(
-                description=f"{self.cross} **Access denied | owner/premiumUser only command**", 
-                color=0x000000
+                description=f"{self.no} **Access Denied:** You need `Kick Members` or `Administrator` permission to use this command.", 
+                color=0x2b2d31
             )
-            await ctx.send(embed=embed)
+            await ctx.send(embed=embed, ephemeral=True)
         elif isinstance(error, commands.BotMissingPermissions):
-            await ctx.send(f"{self.cross} I am missing the **Kick Members** permission.")
+            await ctx.send(f"{self.cross} I am missing the **Kick Members** permission required for this action.")
         elif isinstance(error, commands.MissingRequiredArgument):
-            await ctx.send(f"{self.cross} **Usage:** `!kick <@user> [reason]`")
+            await ctx.send(f"{self.cross} **Missing Argument:** Please specify a valid member. `!kick <@user> [reason]`")
         else:
-            await ctx.send(f"{self.cross} **Error:** `{error}`")
+            await ctx.send(f"{self.cross} **An error occurred:** `{error}`")
 
 async def setup(bot):
     await bot.add_cog(Kick(bot))
+                                                          

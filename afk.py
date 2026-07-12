@@ -1,7 +1,15 @@
 import discord
 from discord.ext import commands
-from discord import ui # Buttons ke liye zaroori hai
+from discord import app_commands
 
+# --- 🎭 Fallback Emojis Mapped Internally ---
+E_DOT = "<a:spider_red_dot:1494179666133516411>"
+E_VERIFIED = "<a:verified:1434044320830459935>"
+E_SWORD = "<:bd_sword:1495476833720729836>"
+
+# ==================================
+# 🔘 AFK SELECTION VIEW CONTROL
+# ==================================
 class AFKView(discord.ui.View):
     def __init__(self, author, reason, cog):
         super().__init__(timeout=30)
@@ -9,81 +17,155 @@ class AFKView(discord.ui.View):
         self.reason = reason
         self.cog = cog
 
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.author.id:
+            await interaction.response.send_message("❌ **Access Denied:** This structural prompt is isolated to the command executor.", ephemeral=True)
+            return False
+        return True
+
     @discord.ui.button(label="Global", style=discord.ButtonStyle.gray)
     async def global_afk(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user != self.author:
-            return await interaction.response.send_message("This is not for you!", ephemeral=True)
+        v = getattr(self.cog.bot, 'emojis_dict', {}).get("verified", E_VERIFIED)
         
-        self.cog.afk_users[self.author.id] = {"reason": self.reason, "pings": [], "type": "global"}
-        await self.cog.set_afk_nickname(interaction.user) # Yahan call karne ka tarika theek kiya
-        await interaction.response.edit_message(content=f"✅ Your AFK is now set **Globally**: {self.reason}", view=None, embed=None)
-
-    @discord.ui.button(label="Guild", style=discord.ButtonStyle.gray)
-    async def guild_afk(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user != self.author:
-            return await interaction.response.send_message("This is not for you!", ephemeral=True)
+        afk_data = self.cog.get_afk_data()
+        afk_data[str(self.author.id)] = {"reason": self.reason, "pings": [], "type": "global"}
+        self.cog.save_afk_data(afk_data)
         
-        self.cog.afk_users[self.author.id] = {"reason": self.reason, "pings": [], "type": str(interaction.guild.id)}
         await self.cog.set_afk_nickname(interaction.user)
-        await interaction.response.edit_message(content=f"✅ Your AFK is now set for **this Guild**: {self.reason}", view=None, embed=None)
+        
+        embed = discord.Embed(
+            description=f"{v} **You are now AFK**\n{self.author.mention}, Reason: **{self.reason}**",
+            color=discord.Color.from_rgb(47, 49, 54)
+        )
+        embed.set_thumbnail(url=self.author.display_avatar.url)
+        embed.set_footer(text="Global Network AFK Matrix Triggered")
+        
+        await interaction.response.edit_message(content=None, embed=embed, view=None)
 
+    @discord.ui.button(label="Guild Only", style=discord.ButtonStyle.gray)
+    async def guild_afk(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not interaction.guild:
+            return await interaction.response.send_message("❌ Guild contexts are required for localized deployments.", ephemeral=True)
+            
+        v = getattr(self.cog.bot, 'emojis_dict', {}).get("verified", E_VERIFIED)
+        
+        afk_data = self.cog.get_afk_data()
+        afk_data[str(self.author.id)] = {"reason": self.reason, "pings": [], "type": str(interaction.guild.id)}
+        self.cog.save_afk_data(afk_data)
+        
+        await self.cog.set_afk_nickname(interaction.user)
+        
+        embed = discord.Embed(
+            description=f"{v} **You are now AFK**\n{self.author.mention}, Reason: **{self.reason}**",
+            color=discord.Color.from_rgb(47, 49, 54)
+        )
+        embed.set_thumbnail(url=self.author.display_avatar.url)
+        embed.set_footer(text=f"Localized Guild Scope Active: {interaction.guild.name}")
+        
+        await interaction.response.edit_message(content=None, embed=embed, view=None)
+
+# ==================================
+# 🤖 AFK STATUS MANAGEMENT EXTENSION
+# ==================================
 class AFK(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.afk_users = {}
 
-    # Nickname change karne wala function (Fix yahan hai)
+    def get_afk_data(self):
+        if hasattr(self.bot, 'db') and self.bot.db:
+            return self.bot.db.get("afk.registry", {})
+        return {}
+
+    def save_afk_data(self, data):
+        if hasattr(self.bot, 'db') and self.bot.db:
+            self.bot.db.set("afk.registry", data)
+
     async def set_afk_nickname(self, user):
-        try:
-            if not user.display_name.startswith("[AFK]"):
-                await user.edit(nick=f"[AFK] {user.display_name}")
-        except Exception as e:
-            print(f"Nickname Error: {e}")
+        if isinstance(user, discord.Member):
+            try:
+                if not user.display_name.startswith("[AFK]"):
+                    await user.edit(nick=f"[AFK] {user.display_name}", reason="AFK profile activation mapping.")
+            except Exception:
+                pass
 
-    @commands.command()
-    async def afk(self, ctx, *, reason="I'm AFK"):
+    # --- 💤 HYBRID AFK ACTIVATION ROUTINE ---
+    @commands.hybrid_command(name="afk", description="Suspends your active status parameters within the system network.")
+    @app_commands.describe(reason="The status payload reason for the suspension.")
+    @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+    @app_commands.allowed_installs(guilds=True, users=True)
+    async def afk(self, ctx: commands.Context, *, reason: str = "I am AFK :)"):
+        dot = getattr(self.bot, 'emojis_dict', {}).get("spider_red_dot", E_DOT)
+        
         embed = discord.Embed(
-            title="Set AFK",
-            description="Do you want to set AFK globally or just for this guild?",
-            color=discord.Color.dark_grey()
+            title="System Alert: Set Status Matrix",
+            description=f"{dot} Choose whether you want to attach this operational status across the entire system **Globally** or isolate it to **this Guild Server** node only.",
+            color=discord.Color.from_rgb(47, 49, 54)
         )
+        
         view = AFKView(ctx.author, reason, self)
         await ctx.send(embed=embed, view=view)
 
+    # --- 💬 ASYNCHRONOUS EVENT TRAFFIC MONITOR ---
     @commands.Cog.listener()
-    async def on_message(self, message):
-        if message.author.bot:
+    async def on_message(self, message: discord.Message):
+        if message.author.bot or not message.guild:
             return
 
-        # AFK Hatane wala part
-        if message.author.id in self.afk_users:
-            data = self.afk_users[message.author.id]
-            if data["type"] == "global" or data["type"] == str(message.guild.id):
-                pings = data["pings"]
-                del self.afk_users[message.author.id]
+        afk_data = self.get_afk_data()
+        user_id_str = str(message.author.id)
 
+        # 1. REMOVE AFK CONDITION TRIGGER
+        if user_id_str in afk_data:
+            data = afk_data[user_id_str]
+            if data["type"] == "global" or data["type"] == str(message.guild.id):
+                v = getattr(self.bot, 'emojis_dict', {}).get("verified", E_VERIFIED)
+                sword = getattr(self.bot, 'emojis_dict', {}).get("bd_sword", E_SWORD)
+                pings = data.get("pings", [])
+                
+                # De-register from database record logs
+                del afk_data[user_id_str]
+                self.save_premium_users = self.save_afk_data(afk_data)
+                
+                # Restore nickname metadata layout configuration profiles
                 try:
                     if message.author.display_name.startswith("[AFK]"):
                         new_nick = message.author.display_name.replace("[AFK] ", "")
-                        await message.author.edit(nick=new_nick)
-                except: pass
+                        await message.author.edit(nick=new_nick, reason="AFK removal execution.")
+                except Exception:
+                    pass
 
-                await message.channel.send(f"Welcome back {message.author.mention}! Your AFK has been removed.", delete_after=5)
+                embed = discord.Embed(
+                    description=f"{v} **Welcome Back:** {message.author.mention}, your status parameters have been safely synchronized back to active operations.",
+                    color=discord.Color.from_rgb(47, 49, 54)
+                )
+                embed.set_thumbnail(url=message.author.display_avatar.url)
+                await message.channel.send(embed=embed, delete_after=6)
 
+                # Process offloaded direct message notifications safely
                 if pings:
-                    ping_msg = "**While you were away, these users pinged you:**\n" + "\n".join(pings)
+                    ping_msg = f"{sword} **Diagnostic Logs: While your application node was offline, you were tagged in these networks:**\n" + "\n".join(pings)
                     try: await message.author.send(ping_msg)
-                    except: pass
+                    except Exception: pass
 
-        # Mentions check
+        # 2. INCOMING MENTION MONITORING ALERTS
         for mention in message.mentions:
-            if mention.id in self.afk_users:
-                data = self.afk_users[mention.id]
+            mention_id_str = str(mention.id)
+            if mention_id_str in afk_data:
+                data = afk_data[mention_id_str]
                 if data["type"] == "global" or data["type"] == str(message.guild.id):
-                    data["pings"].append(f"👤 {message.author.name} in **{message.guild.name}**")
-                    await message.reply(f"⚠️ **{mention.name}** is currently AFK: {data['reason']}")
+                    dot = getattr(self.bot, 'emojis_dict', {}).get("spider_red_dot", E_DOT)
+                    
+                    # Store tracking payload inside internal cache
+                    data["pings"].append(f"• 👤 `{message.author.name}` tagged you inside **{message.guild.name}** -> <#{message.channel.id}>")
+                    self.save_afk_data(afk_data)
+                    
+                    embed = discord.Embed(
+                        description=f"{dot} **Status Alert:** {mention.mention} is currently running an offline diagnostic state.\n\n💬 **Reason Payload:** `{data['reason']}`",
+                        color=discord.Color.from_rgb(47, 49, 54)
+                    )
+                    embed.set_thumbnail(url=mention.display_avatar.url)
+                    await message.reply(embed=embed, mention_author=False)
 
 async def setup(bot):
     await bot.add_cog(AFK(bot))
         
-            

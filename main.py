@@ -3,11 +3,8 @@ import os
 import asyncio
 import json
 import logging
-import subprocess
-import shutil
 import urllib.request
 import zipfile
-import random
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 from discord.ext import commands, tasks
@@ -21,7 +18,7 @@ def run_health_server():
         def do_GET(self):
             self.send_response(200)
             self.end_headers()
-            self.wfile.write(b"Starla Alive")
+            self.wfile.write(b"Starla Operational")
         def log_message(self, format, *args): 
             return 
             
@@ -48,13 +45,25 @@ def install_ffmpeg():
         except Exception as e: 
             print(f"❌ FFmpeg Error: {e}")
 
-# --- ⚙️ DYNAMIC PREFIX LOGIC ---
+# --- ⚙️ DYNAMIC PREMIUM & GUILD PREFIX LOGIC ---
 def get_prefix(bot, message):
-    if not message.guild:
-        return "!"
+    default_prefix = "!"
+    
+    # 1. Check if user is registered in the Premium database
     if hasattr(bot, 'db') and bot.db:
-        return bot.db.get(f"prefix.{message.guild.id}", "!")
-    return "!"
+        premium_users = bot.db.get("premium.users", [])
+        if message.author and message.author.id in premium_users:
+            # Grants empty string prefix (No-Prefix) alongside server default
+            if message.guild:
+                guild_prefix = bot.db.get(f"prefix.{message.guild.id}", default_prefix)
+                return [guild_prefix, ""]
+            return [default_prefix, ""]
+
+    # 2. Standard server prefix logic for non-premium users
+    if message.guild and hasattr(bot, 'db') and bot.db:
+        return bot.db.get(f"prefix.{message.guild.id}", default_prefix)
+        
+    return default_prefix
 
 # --- 🤖 BOT CLASS ---
 class Starla(commands.Bot):
@@ -102,9 +111,11 @@ class Starla(commands.Bot):
         self.db = Database(db_path)
         print("💾 Database connected successfully.")
         
-        # Register core cogs internally first
+        # Internal Cog Registrations
         await self.add_cog(CoreCommands(self))
+        await self.add_cog(PremiumSystem(self))
         
+        # External Extensions Load
         for f in os.listdir('./'):
             if f.endswith('.py') and f not in ['main.py', 'database.py']:
                 try:
@@ -137,7 +148,7 @@ class Starla(commands.Bot):
         status_text = f"Starla | {len(self.guilds)} Connected Networks"
         await self.change_presence(activity=Streaming(name=status_text, url="https://twitch.tv/starla_bot"))
 
-    # --- 💬 PROFESSIONAL MENTION HANDLER ---
+    # --- 💬 MENTION HANDLER ---
     async def on_message(self, message):
         if message.author.bot: 
             return
@@ -163,8 +174,9 @@ class Starla(commands.Bot):
                 return
                 
             elif content == "":
-                current_prefix = self.command_prefix(self, message)
-                await message.reply(f"{v} Greetings. I am **Starla**, an automated application network optimized by **Harsh**. Your configuration prefix is `{current_prefix}`. Use `{current_prefix}help` or check slash interaction parameters to access service modules. {heart} {mor}")
+                prefix_data = self.command_prefix(self, message)
+                current_prefix = prefix_data[0] if isinstance(prefix_data, list) else prefix_data
+                await message.reply(f"{v} Greetings. I am **Starla**, an automated application network optimized by **Harsh**. Your configuration prefix is `{current_prefix}`. Use `{current_prefix}help` to access service modules. {heart} {mor}")
                 return
 
         await self.process_commands(message)
@@ -296,6 +308,86 @@ class CoreCommands(commands.Cog):
             f_purple = self.bot.emojis_dict["fire_purple"]
             await ctx.send(f"{f_purple} **Argument Missing:** Command requires a specific target guild ID parameter configuration.")
 
+# --- 💎 PREMIUM & NO-PREFIX SYSTEM COG ---
+class PremiumSystem(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
+    def get_premium_users(self):
+        if self.bot.db:
+            return self.bot.db.get("premium.users", [])
+        return []
+
+    def save_premium_users(self, users_list):
+        if self.bot.db:
+            self.bot.db.set("premium.users", users_list)
+
+    @commands.hybrid_group(name="premium", description="Owner Only: Administrative hub for managing Premium No-Prefix privileges.")
+    @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+    @app_commands.allowed_installs(guilds=True, users=True)
+    @commands.is_owner()
+    async def premium(self, ctx):
+        if ctx.invoked_subcommand is None:
+            f_purple = self.bot.emojis_dict.get("fire_purple", "⚠️")
+            await ctx.send(f"{f_purple} **Usage:** `!premium add <user>` | `!premium remove <user>` | `!premium list`")
+
+    @premium.command(name="add", description="Owner Only: Grants premium no-prefix execution access to a user.")
+    @app_commands.describe(user="The target user to authorize.")
+    @commands.is_owner()
+    async def add(self, ctx, user: discord.User):
+        v = self.bot.emojis_dict.get("verified", "✅")
+        sword = self.bot.emojis_dict.get("bd_sword", "🛡️")
+        f_purple = self.bot.emojis_dict.get("fire_purple", "⚠️")
+        
+        users = self.get_premium_users()
+        if user.id in users:
+            return await ctx.send(f"{f_purple} User `{user.name}` is already registered in the Premium No-Prefix database.")
+
+        users.append(user.id)
+        self.save_premium_users(users)
+        await ctx.send(f"{v} **Premium Activated:** `{user.name}` can now execute commands without any prefix. {sword}")
+
+    @premium.command(name="remove", description="Owner Only: Revokes premium no-prefix access from a user.")
+    @app_commands.describe(user="The target user to deauthorize.")
+    @commands.is_owner()
+    async def remove(self, ctx, user: discord.User):
+        f_red = self.bot.emojis_dict.get("fire_red_pastel", "❌")
+        dot = self.bot.emojis_dict.get("spider_red_dot", "⚠️")
+        
+        users = self.get_premium_users()
+        if user.id not in users:
+            return await ctx.send(f"{dot} User `{user.name}` does not have active Premium status.")
+
+        users.remove(user.id)
+        self.save_premium_users(users)
+        await ctx.send(f"{f_red} **Premium Revoked:** No-Prefix mode disabled for user `{user.name}`.")
+
+    @premium.command(name="list", description="Owner Only: Lists all current Premium No-Prefix users.")
+    @commands.is_owner()
+    async def list_users(self, ctx):
+        admin = self.bot.emojis_dict.get("air_admin", "🛡️")
+        f_white = self.bot.emojis_dict.get("fire_white", "🔹")
+        
+        users = self.get_premium_users()
+        if not users:
+            return await ctx.send("No users are currently registered in the Premium database.")
+
+        msg = f"{admin} **Registered Premium Users ({len(users)}):**\n\n"
+        for uid in users:
+            u = self.bot.get_user(uid)
+            uname = u.name if u else f"ID: {uid}"
+            msg += f"{f_white} • **{uname}** (`{uid}`)\n"
+
+        await ctx.send(msg)
+
+    @premium.error
+    @add.error
+    @remove.error
+    @list_users.error
+    async def premium_error(self, ctx, error):
+        if isinstance(error, commands.NotOwner):
+            f_red = self.bot.emojis_dict.get("fire_red_pastel", "❌")
+            await ctx.send(f"{f_red} **Access Restriction Fault:** The requested action requires elevation privileges matching the system root developer.")
 
 if __name__ == "__main__":
     bot = Starla()
@@ -304,4 +396,4 @@ if __name__ == "__main__":
         bot.run(token)
     else:
         print("❌ Fatal Error: Environment variable configuration token missing.")
-            
+        

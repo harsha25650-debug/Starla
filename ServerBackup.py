@@ -56,7 +56,7 @@ class BackupModule(commands.Cog):
         cursor.execute("INSERT OR REPLACE INTO backup_channels (guild_id, channel_id) VALUES (?, ?)", (guild_id, channel_id))
         conn.commit()
 
-    # Helper: Channel ki customized permission overwrites extract karne ke liye
+    # Helper: Permission overwrites extract karne ke liye
     def get_channel_overwrites(self, channel):
         overwrites_list = []
         for target, overwrite in channel.overwrites.items():
@@ -69,21 +69,22 @@ class BackupModule(commands.Cog):
             })
         return overwrites_list
 
-    # Core Backup Generator Function (MAX ASSETS INCLUDED)
-    def generate_server_backup(self, guild: discord.Guild):
+    # Core Backup Generator Function (AB DYNAMIC FETCH KAREGA)
+    async def generate_server_backup(self, guild: discord.Guild):
+        # ⚠️ Yahan hum direct Discord API se live channels fetch kar rahe hain taaki cache ka koi issue na rahe
+        all_fetched_channels = await guild.fetch_channels()
+
         backup_data = {
             "server_name": guild.name,
             "server_id": guild.id,
             "icon_url": str(guild.icon.url) if guild.icon else None,
             "banner_url": str(guild.banner.url) if guild.banner else None,
             "verification_level": str(guild.verification_level),
-            "explicit_content_filter": str(guild.explicit_content_filter),
-            "default_notifications": str(guild.default_notifications),
             "backup_time": str(datetime.datetime.now()),
             "roles": [],
             "categories": [],
-            "orphaned_channels": [], # Jo channels kisi category ke andar nahi hain
-            "members": [] # Nicknames aur roles data
+            "orphaned_channels": [],
+            "members": []
         }
 
         # 1. ROLES SYSTEM
@@ -99,8 +100,12 @@ class BackupModule(commands.Cog):
                 "permissions": role.permissions.value
             })
 
-        # 2. CATEGORIES & INSIDE CHANNELS
-        for category in guild.categories:
+        # Separate categories and normal channels from the fetched list
+        categories = [c for c in all_fetched_channels if isinstance(c, discord.CategoryChannel)]
+        text_and_voice = [c for c in all_fetched_channels if not isinstance(c, discord.CategoryChannel)]
+
+        # 2. CATEGORIES & INSIDE CHANNELS LOGIC
+        for category in sorted(categories, key=lambda x: x.position):
             cat_info = {
                 "id": category.id,
                 "name": category.name,
@@ -108,7 +113,10 @@ class BackupModule(commands.Cog):
                 "overwrites": self.get_channel_overwrites(category),
                 "channels": []
             }
-            for channel in category.channels:
+            
+            # Is category ke channels ko filter karenge
+            category_channels = [c for c in text_and_voice if c.category_id == category.id]
+            for channel in sorted(category_channels, key=lambda x: x.position):
                 chan_info = {
                     "id": channel.id,
                     "name": channel.name,
@@ -118,15 +126,14 @@ class BackupModule(commands.Cog):
                     "topic": channel.topic if isinstance(channel, discord.TextChannel) else None,
                     "slowmode_delay": channel.slowmode_delay if isinstance(channel, discord.TextChannel) else 0,
                     "user_limit": channel.user_limit if isinstance(channel, discord.VoiceChannel) else 0,
-                    "bitrate": channel.bitrate if isinstance(channel, discord.VoiceChannel) else 64000,
                     "overwrites": self.get_channel_overwrites(channel)
                 }
                 cat_info["channels"].append(chan_info)
             backup_data["categories"].append(cat_info)
 
-        # 3. ORPHANED CHANNELS (Bina category wale saare channels)
-        for channel in guild.channels:
-            if channel.category is None and not isinstance(channel, discord.CategoryChannel):
+        # 3. ORPHANED CHANNELS (Bina kisi category wale)
+        for channel in text_and_voice:
+            if channel.category_id is None:
                 chan_info = {
                     "id": channel.id,
                     "name": channel.name,
@@ -134,19 +141,18 @@ class BackupModule(commands.Cog):
                     "position": channel.position,
                     "nsfw": channel.nsfw if isinstance(channel, discord.TextChannel) else False,
                     "topic": channel.topic if isinstance(channel, discord.TextChannel) else None,
-                    "slowmode_delay": channel.slowmode_delay if isinstance(channel, discord.TextChannel) else 0,
                     "overwrites": self.get_channel_overwrites(channel)
                 }
                 backup_data["orphaned_channels"].append(chan_info)
 
-        # 4. ALL MEMBERS DETAILS (NICKS & ROLES MAP)
+        # 4. MEMBERS DATA
         for member in guild.members:
             if member.bot:
-                continue # Bots ko chhod kar
+                continue
             backup_data["members"].append({
                 "user_id": member.id,
                 "username": member.name,
-                "nickname": member.nick, # Member ka custom nickname save karega
+                "nickname": member.nick,
                 "roles": [role.id for role in member.roles if not role.is_default()]
             })
 
@@ -165,21 +171,25 @@ class BackupModule(commands.Cog):
                 except (discord.NotFound, discord.Forbidden):
                     return False
 
-            backup_data = self.generate_server_backup(guild)
+            # generate_server_backup ab async hai, isliye 'await' lagaya hai
+            backup_data = await self.generate_server_backup(guild)
             json_string = json.dumps(backup_data, indent=4, ensure_ascii=False)
             file_data = io.BytesIO(json_string.encode('utf-8'))
             filename = f"backup_{guild.id}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
             discord_file = discord.File(file_data, filename=filename)
+
+            # Channels count calculate karne ke liye
+            total_channels_saved = sum(len(cat["channels"]) for cat in backup_data["categories"]) + len(backup_data["orphaned_channels"])
 
             embed = discord.Embed(
                 title=f"{EMOJIS['info']} Advanced Server Backup Processed",
                 color=discord.Color.blue(),
                 timestamp=datetime.datetime.now()
             )
-            embed.description = f"{EMOJIS['arrow']} **Status:** Full infrastructure database snapshot compiled.\n{EMOJIS['arrow']} **Reason:** {reason}"
+            embed.description = f"{EMOJIS['arrow']} **Status:** Live API channel mapping snapshot compiled successfully.\n{EMOJIS['arrow']} **Reason:** {reason}"
             
             embed.add_field(name=f"{EMOJIS['dot_blue']} Server Name", value=guild.name, inline=True)
-            embed.add_field(name=f"{EMOJIS['dot_yellow']} Categories & Channels", value=f"Cats: {len(backup_data['categories'])}\nOrphans: {len(backup_data['orphaned_channels'])}", inline=True)
+            embed.add_field(name=f"{EMOJIS['dot_yellow']} Saved Channels", value=f"Total: {total_channels_saved}\nCategories: {len(backup_data['categories'])}", inline=True)
             embed.add_field(name=f"{EMOJIS['dot_orange']} Total Roles", value=str(len(backup_data["roles"])), inline=True)
             embed.add_field(name=f"{EMOJIS['dot_pink']} Saved User Nodes", value=f"{len(backup_data['members'])} Members", inline=True)
             
@@ -277,4 +287,4 @@ class BackupModule(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(BackupModule(bot))
-        
+            

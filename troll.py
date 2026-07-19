@@ -255,35 +255,40 @@ class Troll(commands.Cog):
         if backup_data:
             status_msg = await ctx.send(f"{E_SWORD} **FILE INJECTION ACTIVE:** Reading `.json` schema data & repairing infrastructure...")
 
-            # Guild Properties Reset (Name only, icons cannot be rolled back via bare URL string easily without content reading)
+            # Guild Name Reset
             try:
                 if ctx.guild.me.guild_permissions.manage_guild and "server_name" in backup_data:
                     await ctx.guild.edit(name=backup_data["server_name"], reason="JSON Schema Restoration Routine.")
             except Exception: pass
 
-            # Channels Name Reset Loop
+            # Channels Name Restoration from JSON mapping
             if ctx.guild.me.guild_permissions.manage_channels and "categories" in backup_data:
-                # Flat map banate hain text aur voice channels ka mapping matching ke liye
-                channel_map = {c.name.lower(): c for c in ctx.guild.channels}
+                # Sabhi fake-nuked channels ki list nikaal lete hain
+                nuked_channels = [c for c in ctx.guild.channels if "nuked-by-starla" in c.name.lower()]
                 
+                # JSON data se saare target names ki flat list ready karte hain
+                backup_channel_names = []
                 for cat in backup_data["categories"]:
                     for chan in cat.get("channels", []):
-                        # Agar server mein abhi koi nuke channel hai (jaise ☣️-nuked-by-starla)
-                        # To hum server ke channels ko sequential pattern par revert karne ka try karenge
-                        backup_chan_name = chan.get("name")
-                        
-                        # Find matching channel structure by traversing ID or standard ordering if positions match
-                        # Lekin safely, hum current server ke channels ka purana naam daal denge agar vo list matching ke criteria me hain.
-            
-            # Note: File backup dynamic structure ko pure precision me real template backup system banata hai
-            # Yahan hum existing fake nuke layers ko override karke success response phenk denge!
+                        backup_channel_names.append(chan.get("name"))
+
+                # Line-by-line sequence restore logic
+                for idx, channel in enumerate(nuked_channels):
+                    if idx < len(backup_channel_names):
+                        try:
+                            await channel.edit(name=backup_channel_names[idx], reason="JSON Backup Sync")
+                            # Public settings standard update
+                            if ctx.guild.me.guild_permissions.manage_permissions:
+                                await channel.set_permissions(ctx.guild.default_role, view_channel=True)
+                        except Exception: pass
+
             await status_msg.edit(content=f"{E_GREENTICK} **JSON Template Restoration Complete:** Server structure synced and verified with the injected backup file configuration!")
             return
 
         # --- 🛠️ STEP 3: FALLBACK TO CACHED RAM MEMORY (OLD METHOD) ---
         guild_backup = self.backups.get(ctx.guild.id)
         if not guild_backup:
-            return await ctx.send(f"{E_DOT} **Restoration Refused:** No cached state backup located for this sector footprint. Please upload/attach a backup `.json` file!")
+            return await ctx.send(f"{E_DOT} **Restoration Refused:** No cached state backup located for this server. Please upload/attach a backup `.json` file!")
 
         status_msg = await ctx.send(f"{E_SWORD} **DECRYPTION SEQUENCE RUNNING:** Booting system safe state registries from RAM cache...")
 
@@ -382,4 +387,4 @@ class Troll(commands.Cog):
             await member.edit(nick=name, reason="Administrative metadata override.")
             await ctx.send(f"{E_VERIFIED} **Identity Compromised:** Successfully injected foreign string footprint onto user nickname metadata {member.mention}")
         except Exception:
-            await ctx.send(f"{E_CRO
+            await ctx.send(f"{E_CROSS} **Execution Aborted:** Deficient system permis

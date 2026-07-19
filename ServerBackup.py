@@ -122,7 +122,7 @@ class BackupModule(commands.Cog):
             embed.add_field(name=f"{EMOJIS['dot_yellow']} Total Categories", value=str(len(backup_data["categories"])), inline=True)
             embed.add_field(name=f"{EMOJIS['dot_orange']} Total Roles Saved", value=str(len(backup_data["roles"])), inline=True)
             
-            embed.set_footer(text="NovaX Security System", icon_url=self.bot.user.avatar.url if self.bot.user.avatar else None)
+            embed.set_footer(text="Starla Security System", icon_url=self.bot.user.avatar.url if self.bot.user.avatar else None)
             if guild.icon:
                 embed.set_thumbnail(url=guild.icon.url)
 
@@ -135,7 +135,7 @@ class BackupModule(commands.Cog):
     # ==========================================
     # 1. SET BACKUP CHANNEL (Prefix & Slash)
     # ==========================================
-    @commands.command(name="setbackupchannel")
+    @commands.command(name="setbackupchannel", aliases=["set server backup channel", "setbackup"])
     @commands.has_permissions(administrator=True)
     async def prefix_set_channel(self, ctx, channel: discord.TextChannel):
         self.set_backup_channel_id(ctx.guild.id, channel.id)
@@ -150,14 +150,14 @@ class BackupModule(commands.Cog):
     # ==========================================
     # 2. CREATE BACKUP CHANNEL (Prefix & Slash)
     # ==========================================
-    @commands.command(name="createbackupchannel")
+    @commands.command(name="createbackupchannel", aliases=["create server backup channel", "createbackup"])
     @commands.has_permissions(administrator=True)
     async def prefix_create_channel(self, ctx):
         overwrites = {
             ctx.guild.default_role: discord.PermissionOverwrite(read_messages=False),
             ctx.guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
         }
-        new_channel = await ctx.guild.create_text_channel(name="novax-backups", overwrites=overwrites)
+        new_channel = await ctx.guild.create_text_channel(name="svstarlabackup🌸", overwrites=overwrites)
         self.set_backup_channel_id(ctx.guild.id, new_channel.id)
         await ctx.send(f"{EMOJIS['mod']} Created and locked backup channel: {new_channel.mention}")
 
@@ -169,14 +169,14 @@ class BackupModule(commands.Cog):
             interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False),
             interaction.guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
         }
-        new_channel = await interaction.guild.create_text_channel(name="novax-backups", overwrites=overwrites)
+        new_channel = await interaction.guild.create_text_channel(name="svstarlabackup🌸", overwrites=overwrites)
         self.set_backup_channel_id(interaction.guild.id, new_channel.id)
         await interaction.followup.send(f"{EMOJIS['mod']} Created and locked backup channel: {new_channel.mention}", ephemeral=True)
 
     # ==========================================
     # 3. INSTANT BACKUP COMMAND (Prefix & Slash)
     # ==========================================
-    @commands.command(name="serverbackup")
+    @commands.command(name="serverbackup", aliases=["server backup", "backup"])
     @commands.has_permissions(administrator=True)
     async def prefix_instant_backup(self, ctx):
         await ctx.send(f"{EMOJIS['dot_yellow']} Generating instant backup, please wait...")
@@ -216,4 +216,4 @@ class BackupModule(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(BackupModule(bot))
-          
+        

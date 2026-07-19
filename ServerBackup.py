@@ -101,8 +101,11 @@ class BackupModule(commands.Cog):
                 channel_id = self.get_backup_channel_id(guild.id)
                 if not channel_id:
                     return False
-                target_channel = self.bot.get_channel(channel_id)
-                if not target_channel:
+                
+                # Cache se read karne ka try karega, nahi to API se fetch karega
+                try:
+                    target_channel = self.bot.get_channel(channel_id) or await self.bot.fetch_channel(channel_id)
+                except (discord.NotFound, discord.Forbidden):
                     return False
 
             backup_data = self.generate_server_backup(guild)

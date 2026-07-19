@@ -263,21 +263,17 @@ class Troll(commands.Cog):
 
             # Channels Name Restoration from JSON mapping
             if ctx.guild.me.guild_permissions.manage_channels and "categories" in backup_data:
-                # Sabhi fake-nuked channels ki list nikaal lete hain
                 nuked_channels = [c for c in ctx.guild.channels if "nuked-by-starla" in c.name.lower()]
                 
-                # JSON data se saare target names ki flat list ready karte hain
                 backup_channel_names = []
                 for cat in backup_data["categories"]:
                     for chan in cat.get("channels", []):
                         backup_channel_names.append(chan.get("name"))
 
-                # Line-by-line sequence restore logic
                 for idx, channel in enumerate(nuked_channels):
                     if idx < len(backup_channel_names):
                         try:
                             await channel.edit(name=backup_channel_names[idx], reason="JSON Backup Sync")
-                            # Public settings standard update
                             if ctx.guild.me.guild_permissions.manage_permissions:
                                 await channel.set_permissions(ctx.guild.default_role, view_channel=True)
                         except Exception: pass
@@ -387,4 +383,9 @@ class Troll(commands.Cog):
             await member.edit(nick=name, reason="Administrative metadata override.")
             await ctx.send(f"{E_VERIFIED} **Identity Compromised:** Successfully injected foreign string footprint onto user nickname metadata {member.mention}")
         except Exception:
-            await ctx.send(f"{E_CROSS} **Execution Aborted:** Deficient system permis
+            await ctx.send(f"{E_CROSS} **Execution Aborted:** Deficient system permissions to override user identity trees.")
+
+    # ==================================
+    # 🛑 HYBRID: GLOBAL FLOOD ABORT
+    # ==================================
+    @commands.hybrid_command(name="trollstop", description="Owner Only: Dispatches a forced termination i

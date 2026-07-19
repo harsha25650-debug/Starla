@@ -209,74 +209,109 @@ class BackupModule(commands.Cog):
             print(f"Backup Error for {guild.name}: {e}")
             return False
 
-    # Core Structural Server Restoration Engine (FIXED CHANNELS MAPPING TYPE SAFETY)
+    # Safe Non-Destructive Category Channel Mappings Engine
     async def execute_server_restoration(self, guild: discord.Guild, data: dict, status_msg):
         try:
-            # 1. Guild Name Revert
+            # 1. Guild Name Restore
             if "server_name" in data and guild.me.guild_permissions.manage_guild:
                 await guild.edit(name=data["server_name"])
 
-            # 2. Strict Type-Safe Channel Mapping Loop
-            if guild.me.guild_permissions.manage_channels:
-                live_channels = await guild.fetch_channels()
+            if not guild.me.guild_permissions.manage_channels:
+                return await status_msg.edit(content=f"{EMOJIS['cross']} **Restoration Denied:** Bot lacks `Manage Channels` permission.")
+
+            await status_msg.edit(content=f"{EMOJIS['dot_yellow']} **Starla Core:** Mapping live categories with JSON footprint...")
+
+            live_categories = sorted(
+                [c for c in guild.channels if isinstance(c, discord.CategoryChannel)],
+                key=lambda x: x.position
+            )
+            backup_categories = data.get("categories", [])
+
+            # --- STEP 2: CATEGORY SECTOR MAPPING & INNER CHANNELS REBUILD ---
+            for idx, live_cat in enumerate(live_categories):
+                if idx >= len(backup_categories):
+                    break
                 
-                nuked_channels = [c for c in live_channels if "nuked" in c.name.lower() or "starla" in c.name.lower()]
-                if not nuked_channels:
-                    nuked_channels = live_channels
+                backup_cat_data = backup_categories[idx]
+                
+                try:
+                    await live_cat.edit(name=backup_cat_data.get("name"))
+                except Exception: pass
 
-                backup_categories = [cat for cat in data.get("categories", [])]
-                backup_text_channels = []
-                backup_voice_channels = []
+                live_text_channels = sorted(
+                    [c for c in live_cat.text_channels],
+                    key=lambda x: x.position
+                )
+                live_voice_channels = sorted(
+                    [c for c in live_cat.voice_channels],
+                    key=lambda x: x.position
+                )
 
-                for cat in backup_categories:
-                    for chan in cat.get("channels", []):
-                        if "voice" in str(chan.get("type")).lower():
-                            backup_voice_channels.append(chan)
-                        else:
-                            backup_text_channels.append(chan)
-
-                for chan in data.get("orphaned_channels", []):
+                backup_text_data = []
+                backup_voice_data = []
+                for chan in backup_cat_data.get("channels", []):
                     if "voice" in str(chan.get("type")).lower():
-                        backup_voice_channels.append(chan)
+                        backup_voice_data.append(chan)
                     else:
-                        backup_text_channels.append(chan)
+                        backup_text_data.append(chan)
 
-                cat_idx = 0
-                text_idx = 0
-                voice_idx = 0
+                for t_idx, text_chan in enumerate(live_text_channels):
+                    if t_idx < len(backup_text_data):
+                        try:
+                            await text_chan.edit(
+                                name=backup_text_data[t_idx].get("name"),
+                                topic=backup_text_data[t_idx].get("topic", "")
+                            )
+                        except Exception: pass
 
-                for channel in nuked_channels:
-                    try:
-                        if isinstance(channel, discord.CategoryChannel):
-                            if cat_idx < len(backup_categories):
-                                await channel.edit(name=backup_categories[cat_idx].get("name"))
-                                cat_idx += 1
+                for v_idx, voice_chan in enumerate(live_voice_channels):
+                    if v_idx < len(backup_voice_data):
+                        try:
+                            await voice_chan.edit(
+                                name=backup_voice_data[v_idx].get("name"),
+                                user_limit=backup_voice_data[v_idx].get("user_limit", 0)
+                            )
+                        except Exception: pass
 
-                        elif isinstance(channel, discord.VoiceChannel):
-                            if voice_idx < len(backup_voice_channels):
-                                await channel.edit(name=backup_voice_channels[voice_idx].get("name"))
-                                voice_idx += 1
+            # --- STEP 3: ORPHANED CHANNELS MAPPING ---
+            await status_msg.edit(content=f"{EMOJIS['dot_yellow']} **Starla Core:** Aligning orphaned channel layers...")
+            
+            live_orphaned_text = sorted(
+                [c for c in guild.channels if c.category is None and isinstance(c, discord.TextChannel) and c.id != status_msg.channel.id],
+                key=lambda x: x.position
+            )
+            live_orphaned_voice = sorted(
+                [c for c in guild.channels if c.category is None and isinstance(c, discord.VoiceChannel)],
+                key=lambda x: x.position
+            )
 
-                        elif isinstance(channel, (discord.TextChannel, discord.StageChannel, discord.ForumChannel)):
-                            if text_idx < len(backup_text_channels):
-                                await channel.edit(name=backup_text_channels[text_idx].get("name"))
-                                text_idx += 1
+            backup_orphaned_text = []
+            backup_orphaned_voice = []
+            for chan in data.get("orphaned_channels", []):
+                if "voice" in str(chan.get("type")).lower():
+                    backup_orphaned_voice.append(chan)
+                else:
+                    backup_orphaned_text.append(chan)
 
-                        if guild.me.guild_permissions.manage_permissions:
-                            await channel.set_permissions(guild.default_role, view_channel=True)
-                    except Exception:
-                        pass
+            for ot_idx, o_text_chan in enumerate(live_orphaned_text):
+                if ot_idx < len(backup_orphaned_text):
+                    try: await o_text_chan.edit(name=backup_orphaned_text[ot_idx].get("name"))
+                    except Exception: pass
 
-            # 3. Restore Members Nicknames safely
+            for ov_idx, o_voice_chan in enumerate(live_orphaned_voice):
+                if ov_idx < len(backup_orphaned_voice):
+                    try: await o_voice_chan.edit(name=backup_orphaned_voice[ov_idx].get("name"))
+                    except Exception: pass
+
+            # --- STEP 4: RESTORE NICKNAMES ---
             if guild.me.guild_permissions.manage_nicknames:
                 for mem_data in data.get("members", []):
                     member = guild.get_member(mem_data.get("user_id"))
                     if member and member.id != guild.owner_id and guild.me.top_role > member.top_role:
-                        try:
-                            await member.edit(nick=mem_data.get("nickname"))
+                        try: await member.edit(nick=mem_data.get("nickname"))
                         except Exception: pass
 
-            await status_msg.edit(content=f"{EMOJIS['yes']} **Starla Core Engine:** Server structure successfully matched and fixed from file template configurations!")
+            await status_msg.edit(content=f"{EMOJIS['yes']} **Starla Core Engine:** Category structural match absolute. Channels aligned safely without any deletion!")
         except Exception as e:
             await status_msg.edit(content=f"{EMOJIS['cross']} Rollback process fault: `{e}`")
 
@@ -374,9 +409,9 @@ class BackupModule(commands.Cog):
             interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False),
             interaction.guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
         }
-        new_channel = await ctx.guild.create_text_channel(name="svstarlabackup🌸", overwrites=overwrites)
+        new_channel = await interaction.guild.create_text_channel(name="svstarlabackup🌸", overwrites=overwrites)
         self.set_backup_channel_id(interaction.guild.id, new_channel.id)
-        await interaction.followup.send(f"{EMOJIS['mod']} Created and locked backup channel: {new_channel.mention}", ephemeral=True)
+                await interaction.followup.send(f"{EMOJIS['mod']} Created and locked backup channel: {new_channel.mention}", ephemeral=True)
 
     @commands.command(name="serverbackup", aliases=["server backup", "backup"])
     @commands.has_permissions(administrator=True)
@@ -396,7 +431,7 @@ class BackupModule(commands.Cog):
         else:
             await interaction.followup.send(f"{EMOJIS['cross']} Failed to generate backup.")
 
-        # ==========================================
+    # ==========================================
     # AUTOMATED TIMERS & LOOPS
     # ==========================================
     @tasks.loop(minutes=30.0)

@@ -220,12 +220,10 @@ class BackupModule(commands.Cog):
             if guild.me.guild_permissions.manage_channels:
                 live_channels = await guild.fetch_channels()
                 
-                # target sirf nuked channel templates ko karega freeze se bachne ke liye
                 nuked_channels = [c for c in live_channels if "nuked" in c.name.lower() or "starla" in c.name.lower()]
                 if not nuked_channels:
                     nuked_channels = live_channels
 
-                # Backup file se channel clusters ko separate arrays mein divide karna
                 backup_categories = [cat for cat in data.get("categories", [])]
                 backup_text_channels = []
                 backup_voice_channels = []
@@ -247,28 +245,23 @@ class BackupModule(commands.Cog):
                 text_idx = 0
                 voice_idx = 0
 
-                # Strict type evaluation matching block
                 for channel in nuked_channels:
                     try:
-                        # Category Channels Mapping
                         if isinstance(channel, discord.CategoryChannel):
                             if cat_idx < len(backup_categories):
                                 await channel.edit(name=backup_categories[cat_idx].get("name"))
                                 cat_idx += 1
 
-                        # Voice Channels Mapping
                         elif isinstance(channel, discord.VoiceChannel):
                             if voice_idx < len(backup_voice_channels):
                                 await channel.edit(name=backup_voice_channels[voice_idx].get("name"))
                                 voice_idx += 1
 
-                        # Text / News Channels Mapping
                         elif isinstance(channel, (discord.TextChannel, discord.StageChannel, discord.ForumChannel)):
                             if text_idx < len(backup_text_channels):
                                 await channel.edit(name=backup_text_channels[text_idx].get("name"))
                                 text_idx += 1
 
-                        # Permissions Overwrites reset state check
                         if guild.me.guild_permissions.manage_permissions:
                             await channel.set_permissions(guild.default_role, view_channel=True)
                     except Exception:
@@ -296,28 +289,24 @@ class BackupModule(commands.Cog):
         backup_data = None
         status_msg = await ctx.send(f"{EMOJIS['dot_yellow']} Analyzing deployment signature parameters...")
 
-        # Case 1: Direct File Attached
         if ctx.message.attachments:
             attachment = ctx.message.attachments[0]
             if attachment.filename.endswith('.json'):
                 file_bytes = await attachment.read()
                 backup_data = json.loads(file_bytes.decode('utf-8'))
 
-        # Case 2: Replied to a message containing backup file
         elif ctx.message.reference:
             replied_msg = await ctx.channel.fetch_message(ctx.message.reference.message_id)
             if replied_msg.attachments and replied_msg.attachments[0].filename.endswith('.json'):
                 file_bytes = await replied_msg.attachments[0].read()
                 backup_data = json.loads(file_bytes.decode('utf-8'))
 
-        # Case 3: URL Given directly
         elif file_url:
             async with aiohttp.ClientSession() as session:
                 async with session.get(file_url) as resp:
                     if resp.status == 200:
                         backup_data = json.loads(await resp.text())
 
-        # Case 4: Fallback to Database Cache
         if not backup_data:
             db_json = self.get_latest_backup_json(ctx.guild.id)
             if db_json:
@@ -385,7 +374,7 @@ class BackupModule(commands.Cog):
             interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False),
             interaction.guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
         }
-        new_channel = await interaction.guild.create_text_channel(name="svstarlabackup🌸", overwrites=overwrites)
+        new_channel = await ctx.guild.create_text_channel(name="svstarlabackup🌸", overwrites=overwrites)
         self.set_backup_channel_id(interaction.guild.id, new_channel.id)
         await interaction.followup.send(f"{EMOJIS['mod']} Created and locked backup channel: {new_channel.mention}", ephemeral=True)
 
@@ -399,6 +388,34 @@ class BackupModule(commands.Cog):
 
     @app_commands.command(name="server_backup", description="Generates and sends an instant backup file in the current channel.")
     @app_commands.checks.has_permissions(administrator=True)
-    async def setup(bot):
+    async def slash_instant_backup(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        status = await self.process_and_send_backup(interaction.guild, reason=f"Manual Slash Trigger by {interaction.user}", target_channel=interaction.channel)
+        if status:
+            await interaction.followup.send(f"{EMOJIS['yes']} Backup file generated and sent successfully!")
+        else:
+            await interaction.followup.send(f"{EMOJIS['cross']} Failed to generate backup.")
+
+        # ==========================================
+    # AUTOMATED TIMERS & LOOPS
+    # ==========================================
+    @tasks.loop(minutes=30.0)
+    async def auto_backup(self):
+        if self.auto_backup.current_loop > 0:
+            for guild in self.bot.guilds:
+                await self.process_and_send_backup(guild, reason="30-Min Auto Timer")
+
+    @auto_backup.before_loop
+    async def before_auto_backup(self):
+        await self.bot.wait_until_ready()
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        print("Bot online! Starting startup backups...")
+        await discord.utils.sleep_until(datetime.datetime.now() + datetime.timedelta(seconds=5))
+        for guild in self.bot.guilds:
+            await self.process_and_send_backup(guild, reason="Bot Restart / Redeploy")
+
+async def setup(bot):
     await bot.add_cog(BackupModule(bot))
     

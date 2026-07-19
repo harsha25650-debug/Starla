@@ -388,4 +388,18 @@ class Troll(commands.Cog):
     # ==================================
     # 🛑 HYBRID: GLOBAL FLOOD ABORT
     # ==================================
-    @commands.hybrid_command(name="trollstop", description="Owner Only: Dispatches a forced termination i
+    @commands.hybrid_command(name="trollstop", description="Owner Only: Dispatches a forced termination interrupt to kill all local running cogs.")
+    @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+    @app_commands.allowed_installs(guilds=True, users=True)
+    @commands.is_owner()
+    async def trollstop(self, ctx: commands.Context):
+        await ctx.defer()
+        if self.is_active(ctx.channel.id):
+            self.active[ctx.channel.id] = False
+            await ctx.send(f"{E_CROSS} **Emergency Wipe Active:** All malicious system loop instances have been forcefully killed.")
+        else:
+            await ctx.send(f"{E_DOT} **Internal Check:** Diagnostic logs confirm no active exploit loop cogs are running inside this node.")
+
+async def setup(bot):
+    await bot.add_cog(Troll(bot))
+    

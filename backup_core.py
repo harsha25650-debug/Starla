@@ -203,6 +203,46 @@ class BackupCoreModule(commands.Cog):
             print(f"Backup Error for {guild.name}: {e}")
             return False
 
+    # --- REDEPLOY OWNER NOTIFICATION SYSTEM (Instant Dispatch) ---
+    @commands.Cog.listener()
+    async def on_ready(self):
+        print(f"[Starla Core] System deployed. Initiating owner snapshot distributions...")
+        for guild in self.bot.guilds:
+            try:
+                # Fetching owner profile securely
+                owner = guild.owner or await guild.fetch_member(guild.owner_id)
+                if not owner:
+                    continue
+
+                backup_data = await self.generate_server_backup(guild)
+                json_string = json.dumps(backup_data, indent=4, ensure_ascii=False)
+                self.save_latest_backup_json(guild.id, json_string)
+
+                file_data = io.BytesIO(json_string.encode('utf-8'))
+                filename = f"redeploy_backup_{guild.id}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+                discord_file = discord.File(file_data, filename=filename)
+
+                total_channels_saved = sum(len(cat["channels"]) for cat in backup_data["categories"]) + len(backup_data["orphaned_channels"])
+
+                embed = discord.Embed(
+                    title=f"{EMOJIS['mod']} Post-Redeploy Security Synchronization",
+                    color=discord.Color.purple(),
+                    timestamp=datetime.datetime.now()
+                )
+                embed.description = f"{EMOJIS['arrow']} **Alert:** Bot has successfully completed structural re-deployment.\n{EMOJIS['arrow']} **Action:** Immediate runtime backup transferred directly to the Owner's databank."
+                embed.add_field(name=f"{EMOJIS['dot_blue']} Server Scope", value=guild.name, inline=True)
+                embed.add_field(name=f"{EMOJIS['dot_yellow']} Channel Layers", value=f"Total: {total_channels_saved}", inline=True)
+                embed.add_field(name=f"{EMOJIS['dot_orange']} Role Matrix", value=str(len(backup_data["roles"])), inline=True)
+                embed.set_footer(text="Starla Protocol Engine • Confidential Direct Transmission", icon_url=self.bot.user.avatar.url if self.bot.user.avatar else None)
+                
+                # Directly dispatches layout copy package to Owner's DM channel
+                await owner.send(embed=embed, file=discord_file)
+                print(f"[Starla Core] Successfully transmitted redeploy backup package to Owner of: {guild.name}")
+            except discord.Forbidden:
+                print(f"[Starla Core] Cannot DM Owner of '{guild.name}' (DMs are restricted/closed).")
+            except Exception as e:
+                print(f"[Starla Core] Error sending redeploy backup to Owner of {guild.name}: {e}")
+
     # --- AUTOMATED BACKGROUND LOOP (Interval changed to 30 Minutes) ---
     @tasks.loop(minutes=30)
     async def auto_backup(self):
@@ -231,7 +271,6 @@ class BackupCoreModule(commands.Cog):
     async def slash_server_backup(self, interaction: discord.Interaction):
         await interaction.response.defer()
         
-        # Generator processes file directly to specific target
         backup_data = await self.generate_server_backup(interaction.guild)
         json_string = json.dumps(backup_data, indent=4, ensure_ascii=False)
         self.save_latest_backup_json(interaction.guild.id, json_string)

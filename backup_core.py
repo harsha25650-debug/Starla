@@ -203,23 +203,59 @@ class BackupCoreModule(commands.Cog):
             print(f"Backup Error for {guild.name}: {e}")
             return False
 
-    # Automated Background Backup Loop (Har 24 ghante me chalega, aap time badal sakte hain)
-    @tasks.loop(hours=24)
+    # --- AUTOMATED BACKGROUND LOOP (Interval changed to 30 Minutes) ---
+    @tasks.loop(minutes=30)
     async def auto_backup(self):
         for guild in self.bot.guilds:
-            await self.process_and_send_backup(guild, reason="Automated Daily Backup")
+            await self.process_and_send_backup(guild, reason="Automated 30-Min Snapshot Cycle")
 
     @auto_backup.before_loop
     async def before_auto_backup(self):
         await self.bot.wait_until_ready()
 
-    # Manual Backup Command
-    @commands.command(name="createbackup", aliases=["makebackup"])
+    # ==========================================
+    # 📝 MANUAL GENERATION COMMANDS (serverbackup)
+    # ==========================================
+    @commands.command(name="serverbackup", aliases=["makebackup", "createbackup"])
     @commands.has_permissions(administrator=True)
-    async def prefix_create_backup_now(self, ctx):
-        status = await self.process_and_send_backup(ctx.guild, reason=f"Manual Trigger by {ctx.author}", target_channel=ctx.channel)
-        if not status:
-            await ctx.send(f"{EMOJIS['cross']} Backup process failed.")
+    async def prefix_server_backup(self, ctx):
+        status_msg = await ctx.send(f"{EMOJIS['dot_yellow']} Processing secure server structure analysis...")
+        status = await self.process_and_send_backup(ctx.guild, reason=f"Manually Triggered by {ctx.author}", target_channel=ctx.channel)
+        if status:
+            await status_msg.delete()
+        else:
+            await status_msg.edit(content=f"{EMOJIS['cross']} Secure extraction routine failed. Check bot execution permissions.")
+
+    @app_commands.command(name="server_backup", description="Generate a real-time layout snapshot and return the compiled backup JSON file.")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def slash_server_backup(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        
+        # Generator processes file directly to specific target
+        backup_data = await self.generate_server_backup(interaction.guild)
+        json_string = json.dumps(backup_data, indent=4, ensure_ascii=False)
+        self.save_latest_backup_json(interaction.guild.id, json_string)
+
+        file_data = io.BytesIO(json_string.encode('utf-8'))
+        filename = f"backup_{interaction.guild.id}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        discord_file = discord.File(file_data, filename=filename)
+
+        total_channels_saved = sum(len(cat["channels"]) for cat in backup_data["categories"]) + len(backup_data["orphaned_channels"])
+
+        embed = discord.Embed(
+            title=f"{EMOJIS['info']} On-Demand Layout Snapshot Delivered",
+            color=discord.Color.green(),
+            timestamp=datetime.datetime.now()
+        )
+        embed.description = f"{EMOJIS['arrow']} **Status:** Secure manifest packet successfully generated."
+        embed.add_field(name=f"{EMOJIS['dot_blue']} Server", value=interaction.guild.name, inline=True)
+        embed.add_field(name=f"{EMOJIS['dot_yellow']} Channels", value=f"Total: {total_channels_saved}", inline=True)
+        embed.add_field(name=f"{EMOJIS['dot_orange']} Roles", value=str(len(backup_data["roles"])), inline=True)
+        
+        embed.set_footer(text="Starla Security System", icon_url=self.bot.user.avatar.url if self.bot.user.avatar else None)
+        if interaction.guild.icon: embed.set_thumbnail(url=interaction.guild.icon.url)
+
+        await interaction.followup.send(embed=embed, file=discord_file)
 
     # ==========================================
     # SET & CREATE CHANNELS
@@ -261,4 +297,4 @@ class BackupCoreModule(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(BackupCoreModule(bot))
-        
+            

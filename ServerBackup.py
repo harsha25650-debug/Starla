@@ -56,22 +56,42 @@ class BackupModule(commands.Cog):
         cursor.execute("INSERT OR REPLACE INTO backup_channels (guild_id, channel_id) VALUES (?, ?)", (guild_id, channel_id))
         conn.commit()
 
-    # Core Backup Generator Function
+    # Helper: Channel ki customized permission overwrites extract karne ke liye
+    def get_channel_overwrites(self, channel):
+        overwrites_list = []
+        for target, overwrite in channel.overwrites.items():
+            overwrites_list.append({
+                "target_id": target.id,
+                "target_type": "role" if isinstance(target, discord.Role) else "member",
+                "target_name": target.name,
+                "allow": overwrite.pair()[0].value,
+                "deny": overwrite.pair()[1].value
+            })
+        return overwrites_list
+
+    # Core Backup Generator Function (MAX ASSETS INCLUDED)
     def generate_server_backup(self, guild: discord.Guild):
         backup_data = {
             "server_name": guild.name,
             "server_id": guild.id,
             "icon_url": str(guild.icon.url) if guild.icon else None,
             "banner_url": str(guild.banner.url) if guild.banner else None,
+            "verification_level": str(guild.verification_level),
+            "explicit_content_filter": str(guild.explicit_content_filter),
+            "default_notifications": str(guild.default_notifications),
             "backup_time": str(datetime.datetime.now()),
+            "roles": [],
             "categories": [],
-            "roles": []
+            "orphaned_channels": [], # Jo channels kisi category ke andar nahi hain
+            "members": [] # Nicknames aur roles data
         }
 
+        # 1. ROLES SYSTEM
         for role in reversed(guild.roles):
             if role.is_default():
                 continue
             backup_data["roles"].append({
+                "id": role.id,
                 "name": role.name,
                 "color": str(role.color),
                 "hoist": role.hoist,
@@ -79,18 +99,56 @@ class BackupModule(commands.Cog):
                 "permissions": role.permissions.value
             })
 
+        # 2. CATEGORIES & INSIDE CHANNELS
         for category in guild.categories:
-            cat_info = {"name": category.name, "position": category.position, "channels": []}
+            cat_info = {
+                "id": category.id,
+                "name": category.name,
+                "position": category.position,
+                "overwrites": self.get_channel_overwrites(category),
+                "channels": []
+            }
             for channel in category.channels:
                 chan_info = {
+                    "id": channel.id,
                     "name": channel.name,
                     "type": str(channel.type),
                     "position": channel.position,
                     "nsfw": channel.nsfw if isinstance(channel, discord.TextChannel) else False,
-                    "topic": channel.topic if isinstance(channel, discord.TextChannel) else None
+                    "topic": channel.topic if isinstance(channel, discord.TextChannel) else None,
+                    "slowmode_delay": channel.slowmode_delay if isinstance(channel, discord.TextChannel) else 0,
+                    "user_limit": channel.user_limit if isinstance(channel, discord.VoiceChannel) else 0,
+                    "bitrate": channel.bitrate if isinstance(channel, discord.VoiceChannel) else 64000,
+                    "overwrites": self.get_channel_overwrites(channel)
                 }
                 cat_info["channels"].append(chan_info)
             backup_data["categories"].append(cat_info)
+
+        # 3. ORPHANED CHANNELS (Bina category wale saare channels)
+        for channel in guild.channels:
+            if channel.category is None and not isinstance(channel, discord.CategoryChannel):
+                chan_info = {
+                    "id": channel.id,
+                    "name": channel.name,
+                    "type": str(channel.type),
+                    "position": channel.position,
+                    "nsfw": channel.nsfw if isinstance(channel, discord.TextChannel) else False,
+                    "topic": channel.topic if isinstance(channel, discord.TextChannel) else None,
+                    "slowmode_delay": channel.slowmode_delay if isinstance(channel, discord.TextChannel) else 0,
+                    "overwrites": self.get_channel_overwrites(channel)
+                }
+                backup_data["orphaned_channels"].append(chan_info)
+
+        # 4. ALL MEMBERS DETAILS (NICKS & ROLES MAP)
+        for member in guild.members:
+            if member.bot:
+                continue # Bots ko chhod kar
+            backup_data["members"].append({
+                "user_id": member.id,
+                "username": member.name,
+                "nickname": member.nick, # Member ka custom nickname save karega
+                "roles": [role.id for role in member.roles if not role.is_default()]
+            })
 
         return backup_data
 
@@ -102,7 +160,6 @@ class BackupModule(commands.Cog):
                 if not channel_id:
                     return False
                 
-                # Cache se read karne ka try karega, nahi to API se fetch karega
                 try:
                     target_channel = self.bot.get_channel(channel_id) or await self.bot.fetch_channel(channel_id)
                 except (discord.NotFound, discord.Forbidden):
@@ -115,15 +172,16 @@ class BackupModule(commands.Cog):
             discord_file = discord.File(file_data, filename=filename)
 
             embed = discord.Embed(
-                title=f"{EMOJIS['info']} Server Backup Processed",
+                title=f"{EMOJIS['info']} Advanced Server Backup Processed",
                 color=discord.Color.blue(),
                 timestamp=datetime.datetime.now()
             )
-            embed.description = f"{EMOJIS['arrow']} **Status:** Backup generated successfully without errors.\n{EMOJIS['arrow']} **Reason:** {reason}"
+            embed.description = f"{EMOJIS['arrow']} **Status:** Full infrastructure database snapshot compiled.\n{EMOJIS['arrow']} **Reason:** {reason}"
             
             embed.add_field(name=f"{EMOJIS['dot_blue']} Server Name", value=guild.name, inline=True)
-            embed.add_field(name=f"{EMOJIS['dot_yellow']} Total Categories", value=str(len(backup_data["categories"])), inline=True)
-            embed.add_field(name=f"{EMOJIS['dot_orange']} Total Roles Saved", value=str(len(backup_data["roles"])), inline=True)
+            embed.add_field(name=f"{EMOJIS['dot_yellow']} Categories & Channels", value=f"Cats: {len(backup_data['categories'])}\nOrphans: {len(backup_data['orphaned_channels'])}", inline=True)
+            embed.add_field(name=f"{EMOJIS['dot_orange']} Total Roles", value=str(len(backup_data["roles"])), inline=True)
+            embed.add_field(name=f"{EMOJIS['dot_pink']} Saved User Nodes", value=f"{len(backup_data['members'])} Members", inline=True)
             
             embed.set_footer(text="Starla Security System", icon_url=self.bot.user.avatar.url if self.bot.user.avatar else None)
             if guild.icon:

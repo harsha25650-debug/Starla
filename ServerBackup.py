@@ -399,5 +399,6 @@ class BackupModule(commands.Cog):
 
     @app_commands.command(name="server_backup", description="Generates and sends an instant backup file in the current channel.")
     @app_commands.checks.has_permissions(administrator=True)
-    async def slash_instant_backup(self, interaction: discord.Interaction):
-        await interaction.respons
+    async def setup(bot):
+    await bot.add_cog(BackupModule(bot))
+    

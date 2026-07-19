@@ -311,7 +311,7 @@ class BackupModule(commands.Cog):
                         try: await member.edit(nick=mem_data.get("nickname"))
                         except Exception: pass
 
-            await status_msg.edit(content=f"{EMOJIS['yes']} **Starla Core Engine:** Category structural match absolute. Channels aligned safely without any deletion!")
+            await status_msg.edit(content=f"{EMOJIS['yes']} **Starla Core Engine:** ("Category structural match absolute. Channels aligned safely without any deletion!")
         except Exception as e:
             await status_msg.edit(content=f"{EMOJIS['cross']} Rollback process fault: `{e}`")
 

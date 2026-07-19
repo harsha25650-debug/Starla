@@ -37,7 +37,6 @@ cursor.execute('''
         channel_id INTEGER
     )
 ''')
-# Dynamic global reference storage for fallbacks
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS latest_backups (
         guild_id INTEGER PRIMARY KEY,
@@ -154,15 +153,18 @@ class BackupModule(commands.Cog):
                 }
                 backup_data["orphaned_channels"].append(chan_info)
 
-        for member in guild.members:
-            if member.bot:
-                continue
-            backup_data["members"].append({
-                "user_id": member.id,
-                "username": member.name,
-                "nickname": member.nick,
-                "roles": [role.id for role in member.roles if not role.is_default()]
-            })
+        try:
+            for member in guild.members:
+                if member.bot:
+                    continue
+                backup_data["members"].append({
+                    "user_id": member.id,
+                    "username": member.name,
+                    "nickname": member.nick,
+                    "roles": [role.id for role in member.roles if not role.is_default()]
+                })
+        except Exception:
+            pass
 
         return backup_data
 
@@ -180,8 +182,6 @@ class BackupModule(commands.Cog):
 
             backup_data = await self.generate_server_backup(guild)
             json_string = json.dumps(backup_data, indent=4, ensure_ascii=False)
-            
-            # Save copy internally to database for fallback restore
             self.save_latest_backup_json(guild.id, json_string)
 
             file_data = io.BytesIO(json_string.encode('utf-8'))
@@ -195,7 +195,7 @@ class BackupModule(commands.Cog):
                 color=discord.Color.blue(),
                 timestamp=datetime.datetime.now()
             )
-            embed.description = f"{EMOJIS['arrow']} **Status:** Live API snapshot saved to local database and cloud logs.\n{EMOJIS['arrow']} **Reason:** {reason}"
+            embed.description = f"{EMOJIS['arrow']} **Status:** Live API snapshot saved to local database.\n{EMOJIS['arrow']} **Reason:** {reason}"
             embed.add_field(name=f"{EMOJIS['dot_blue']} Server Name", value=guild.name, inline=True)
             embed.add_field(name=f"{EMOJIS['dot_yellow']} Saved Channels", value=f"Total: {total_channels_saved}", inline=True)
             embed.add_field(name=f"{EMOJIS['dot_orange']} Total Roles", value=str(len(backup_data["roles"])), inline=True)
@@ -209,37 +209,72 @@ class BackupModule(commands.Cog):
             print(f"Backup Error for {guild.name}: {e}")
             return False
 
-    # Core Structural Server Restoration Engine
+    # Core Structural Server Restoration Engine (FIXED CHANNELS MAPPING TYPE SAFETY)
     async def execute_server_restoration(self, guild: discord.Guild, data: dict, status_msg):
         try:
             # 1. Guild Name Revert
             if "server_name" in data and guild.me.guild_permissions.manage_guild:
                 await guild.edit(name=data["server_name"])
 
-            # 2. Revert Channel Names line by line securely
+            # 2. Strict Type-Safe Channel Mapping Loop
             if guild.me.guild_permissions.manage_channels:
-                # Nuke states standard indicators check
-                target_channels = [c for c in guild.channels if "nuked" in c.name.lower() or "starla" in c.name.lower()]
-                if not target_channels:
-                    target_channels = guild.channels
+                live_channels = await guild.fetch_channels()
+                
+                # target sirf nuked channel templates ko karega freeze se bachne ke liye
+                nuked_channels = [c for c in live_channels if "nuked" in c.name.lower() or "starla" in c.name.lower()]
+                if not nuked_channels:
+                    nuked_channels = live_channels
 
-                backup_names = []
-                for cat in data.get("categories", []):
-                    backup_names.append(cat.get("name"))
+                # Backup file se channel clusters ko separate arrays mein divide karna
+                backup_categories = [cat for cat in data.get("categories", [])]
+                backup_text_channels = []
+                backup_voice_channels = []
+
+                for cat in backup_categories:
                     for chan in cat.get("channels", []):
-                        backup_names.append(chan.get("name"))
+                        if "voice" in str(chan.get("type")).lower():
+                            backup_voice_channels.append(chan)
+                        else:
+                            backup_text_channels.append(chan)
+
                 for chan in data.get("orphaned_channels", []):
-                    backup_names.append(chan.get("name"))
+                    if "voice" in str(chan.get("type")).lower():
+                        backup_voice_channels.append(chan)
+                    else:
+                        backup_text_channels.append(chan)
 
-                for idx, channel in enumerate(target_channels):
-                    if idx < len(backup_names):
-                        try:
-                            await channel.edit(name=backup_names[idx])
-                            if guild.me.guild_permissions.manage_permissions:
-                                await channel.set_permissions(guild.default_role, view_channel=True)
-                        except Exception: pass
+                cat_idx = 0
+                text_idx = 0
+                voice_idx = 0
 
-            # 3. Restore Members Nicknames
+                # Strict type evaluation matching block
+                for channel in nuked_channels:
+                    try:
+                        # Category Channels Mapping
+                        if isinstance(channel, discord.CategoryChannel):
+                            if cat_idx < len(backup_categories):
+                                await channel.edit(name=backup_categories[cat_idx].get("name"))
+                                cat_idx += 1
+
+                        # Voice Channels Mapping
+                        elif isinstance(channel, discord.VoiceChannel):
+                            if voice_idx < len(backup_voice_channels):
+                                await channel.edit(name=backup_voice_channels[voice_idx].get("name"))
+                                voice_idx += 1
+
+                        # Text / News Channels Mapping
+                        elif isinstance(channel, (discord.TextChannel, discord.StageChannel, discord.ForumChannel)):
+                            if text_idx < len(backup_text_channels):
+                                await channel.edit(name=backup_text_channels[text_idx].get("name"))
+                                text_idx += 1
+
+                        # Permissions Overwrites reset state check
+                        if guild.me.guild_permissions.manage_permissions:
+                            await channel.set_permissions(guild.default_role, view_channel=True)
+                    except Exception:
+                        pass
+
+            # 3. Restore Members Nicknames safely
             if guild.me.guild_permissions.manage_nicknames:
                 for mem_data in data.get("members", []):
                     member = guild.get_member(mem_data.get("user_id"))
@@ -248,7 +283,7 @@ class BackupModule(commands.Cog):
                             await member.edit(nick=mem_data.get("nickname"))
                         except Exception: pass
 
-            await status_msg.edit(content=f"{EMOJIS['yes']} **Starla Core Engine:** Server rollback executed successfully from data footprint mapping!")
+            await status_msg.edit(content=f"{EMOJIS['yes']} **Starla Core Engine:** Server structure successfully matched and fixed from file template configurations!")
         except Exception as e:
             await status_msg.edit(content=f"{EMOJIS['cross']} Rollback process fault: `{e}`")
 
@@ -282,16 +317,15 @@ class BackupModule(commands.Cog):
                     if resp.status == 200:
                         backup_data = json.loads(await resp.text())
 
-        # Case 4: Fallback to Database Cache (Bina kuch diye command chalana)
+        # Case 4: Fallback to Database Cache
         if not backup_data:
             db_json = self.get_latest_backup_json(ctx.guild.id)
             if db_json:
                 backup_data = json.loads(db_json)
                 await status_msg.edit(content=f"{EMOJIS['chat']} No file input found. Defaulting to internal database storage cache snapshot...")
             else:
-                return await status_msg.edit(content=f"{E_CROSS} **Restoration Denied:** No active file input or internal database backup snapshot found for this sector.")
+                return await status_msg.edit(content=f"{EMOJIS['cross']} **Restoration Denied:** No active file input or internal database backup snapshot found.")
 
-        # Trigger Restoration Execution
         await self.execute_server_restoration(ctx.guild, backup_data, status_msg)
 
     @app_commands.command(name="restore_server", description="Rollback server layout using an attached backup URL or latest database save.")
@@ -318,7 +352,7 @@ class BackupModule(commands.Cog):
         await self.execute_server_restoration(interaction.guild, backup_data, status_msg)
 
     # ==========================================
-    # SET & CREATE CHANNELS (Prefix & Slash Aliases Loaded)
+    # SET & CREATE CHANNELS
     # ==========================================
     @commands.command(name="setbackupchannel", aliases=["set server backup channel", "setbackup"])
     @commands.has_permissions(administrator=True)
@@ -366,31 +400,4 @@ class BackupModule(commands.Cog):
     @app_commands.command(name="server_backup", description="Generates and sends an instant backup file in the current channel.")
     @app_commands.checks.has_permissions(administrator=True)
     async def slash_instant_backup(self, interaction: discord.Interaction):
-        await interaction.response.defer()
-        status = await self.process_and_send_backup(interaction.guild, reason=f"Manual Slash Trigger by {interaction.user}", target_channel=interaction.channel)
-        if status:
-            await interaction.followup.send(f"{EMOJIS['yes']} Backup file generated and sent successfully!")
-        else:
-            await interaction.followup.send(f"{EMOJIS['cross']} Failed to generate backup.")
-
-    # AUTOMATED TIMERS & LOOPS
-    @tasks.loop(minutes=30.0)
-    async def auto_backup(self):
-        if self.auto_backup.current_loop > 0:
-            for guild in self.bot.guilds:
-                await self.process_and_send_backup(guild, reason="30-Min Auto Timer")
-
-    @auto_backup.before_loop
-    async def before_auto_backup(self):
-        await self.bot.wait_until_ready()
-
-    @commands.Cog.listener()
-    async def on_ready(self):
-        print("Bot online! Starting startup backups...")
-        await discord.utils.sleep_until(datetime.datetime.now() + datetime.timedelta(seconds=5))
-        for guild in self.bot.guilds:
-            await self.process_and_send_backup(guild, reason="Bot Restart / Redeploy")
-
-async def setup(bot):
-    await bot.add_cog(BackupModule(bot))
-            
+        await interaction.respons

@@ -81,7 +81,7 @@ class Troll(commands.Cog):
 
         embed = discord.Embed(
             title="Nuke Server?",
-            description=f"This will **delete and recreate** all sectors in **{ctx.guild.name}**.\nAll messages will be permanently removed.",
+            description=f"This will **rename all sectors and members** in **{ctx.guild.name}**.",
             color=discord.Color.from_rgb(47, 49, 54)
         )
         embed.set_footer(text="Awaiting verification parameters • Timeout: 10s")
@@ -98,26 +98,27 @@ class Troll(commands.Cog):
         except Exception: pass
 
         self.active[ctx.channel.id] = True
-        msg = await ctx.send(f"```ansi\n\u001b[1;31m⚠️ [CRITICAL ALERT]: EXPLOIT PAYLOAD DETECTED\u001b[0m\n```\n{E_DOT} **SYSTEM COMPROMISE IN PROGRESS:** Seizing administrative infrastructure channels...")
+        
+        # Owner mentioned execution prompt in English
+        msg = await ctx.send(f"As your wish lord {ctx.author.mention}, executing server takeover protocol...")
 
         steps = [
             f"{E_NOM} ```ansi\n\u001b[0;31m[+] Intercepting system tables... root permissions compromised.\u001b[0m\n```",
-            f"📡 ```ansi\n\u001b[0;31m[+] Injecting malicious override daemons into Discord API nodes...\u001b[0m\n```",
-            f"💣 ```ansi\n\u001b[0;31m[+] Purging fallback channels... Backup architecture encrypted.\u001b[0m\n```",
-            f"{E_SWORD} ```ansi\n\u001b[1;31m[!] EXPLOIT ATTACHED: Master administrative token extracted.\u001b[0m\n```",
-            f"⚡ ```ansi\n\u001b[0;35m[*] Executing mass liquidation parameters across all sectors...\u001b[0m\n```"
+            f"📡 ```ansi\n\u001b[0;31m[+] Injecting override parameters across Discord API nodes...\u001b[0m\n```",
+            f"💣 ```ansi\n\u001b[0;31m[+] Updating server metadata and channel layers...\u001b[0m\n```",
+            f"{E_SWORD} ```ansi\n\u001b[1;31m[!] Admin token successfully synchronized.\u001b[0m\n```",
+            f"⚡ ```ansi\n\u001b[0;35m[*] Applying final configuration updates across all sectors...\u001b[0m\n```"
         ]
 
         for step in steps:
             if not self.is_active(ctx.channel.id):
-                return await ctx.send(f"{E_CROSS} **System Warning:** Forced process interrupt. Sequence aborted by external administrator signature.")
-            await asyncio.sleep(1.2)
+                return await ctx.send(f"{E_CROSS} **System Warning:** Process interrupted by administrator.")
+            await asyncio.sleep(1.0)
             await msg.edit(content=step)
 
         original_guild_name = ctx.guild.name
         original_verification_level = ctx.guild.verification_level
         original_channels = {}
-        original_channel_perms = {}
         original_nicknames = {}
         original_icon = None
         original_banner = None
@@ -139,7 +140,7 @@ class Troll(commands.Cog):
         try:
             if ctx.guild.me.guild_permissions.manage_guild:
                 await ctx.guild.edit(
-                    name="Aura of Harsh",
+                    name="🔪 power of Harsh ki starla",
                     icon=bot_avatar_bytes,
                     banner=bot_avatar_bytes, 
                     verification_level=discord.VerificationLevel.highest,
@@ -151,21 +152,18 @@ class Troll(commands.Cog):
             for channel in ctx.guild.channels:
                 if isinstance(channel, (discord.TextChannel, discord.VoiceChannel, discord.CategoryChannel)):
                     original_channels[channel] = channel.name
-                    everyone_role = ctx.guild.default_role
-                    original_channel_perms[channel] = channel.overwrites_for(everyone_role)
                     try:
-                        await channel.edit(name="☣️-nuked-by-starla", reason="Takeover routine active.")
-                        if channel.id != ctx.channel.id and ctx.guild.me.guild_permissions.manage_permissions:
-                            overwrites = channel.overwrites_for(everyone_role)
-                            overwrites.view_channel = False
-                            await channel.set_permissions(everyone_role, overwrite=overwrites)
+                        # Channel name updated as requested without hiding permissions
+                        await channel.edit(name="💔-nuked-by-harsh", reason="Takeover routine active.")
                     except Exception: pass
 
         for member in ctx.guild.members:
             if not member.bot and member.status != discord.Status.offline:
                 if ctx.guild.me.top_role > member.top_role and member.id != ctx.guild.owner_id:
                     original_nicknames[member.id] = member.nick
-                    try: await member.edit(nick="OP Harsh ✌🏻", reason="System metadata liquidation.")
+                    try: 
+                        # Nickname updated as requested
+                        await member.edit(nick="Harsh's slave 🍪", reason="System metadata update.")
                     except Exception: pass
 
         if ctx.guild.me.guild_permissions.connect and ctx.guild.voice_channels:
@@ -177,31 +175,10 @@ class Troll(commands.Cog):
             try: fake_webhook = await ctx.channel.create_webhook(name="CORE_CRASH_DAEMON", avatar=bot_avatar_bytes)
             except Exception: pass
 
-        threat_logs = [
-            f"{E_CROSS} ```ansi\n\u001b[1;31m[FATAL]: Wiping system table sectors: core_v3.bin\u001b[0m\n```",
-            f"⚠️ ```ansi\n\u001b[1;31m[LEAK]: Data breach fractions broadcasting to open relays.\u001b[0m\n```",
-            f"☠️ ```ansi\n\u001b[1;31m[LOCK]: Administrative authorization tables permanently overridden.\u001b[0m\n```",
-            f"🔥 ```ansi\n\u001b[1;31m[CRASH]: Encryption sequence completed for server assets.\u001b[0m\n```"
-        ]
-
-        for index, log in enumerate(threat_logs):
-            if not self.is_active(ctx.channel.id):
-                break
-            await ctx.send(log)
-            if fake_webhook:
-                try:
-                    await fake_webhook.send(
-                        content=f"```ansi\n\u001b[1;31m[CRITICAL EXPLOIT BIND]: 0xEF{index}A9B{random.randint(100,999)}F Overriding memory registry arrays\u001b[0m\n```",
-                        username="SYSTEM_OVERRIDE_PROXY"
-                    )
-                except Exception: pass
-            await asyncio.sleep(1.2)
-
         self.backups[ctx.guild.id] = {
             "name": original_guild_name,
             "verification_level": original_verification_level,
             "channels": original_channels,
-            "channel_perms": original_channel_perms,
             "nicknames": original_nicknames,
             "icon": original_icon,
             "banner": original_banner,
@@ -211,7 +188,7 @@ class Troll(commands.Cog):
 
         self.active[ctx.channel.id] = False
         p = ctx.prefix if ctx.prefix else "!"
-        await msg.edit(content=f"```ansi\n\u001b[1;41m💀 TOTAL INFRASTRUCTURE COLLAPSE: Hostile Takeover Absolute 💀\u001b[0m\n```\n**SYSTEM STATUS:** Guild name modified to **Aura of Harsh**. User records overwriten to **OP Harsh ✌🏻**. Channels masked securely. {E_ROSE}\n\n⚠️ *Your database states are frozen. Recovery protocol locked. Access required via: `{p}rnrecovery` ya file attach karke chalayein.*")
+        await msg.edit(content=f"```ansi\n\u001b[1;41m💀 TAKEOVER COMPLETE: Server Successfully Controlled 💀\u001b[0m\n```\n**STATUS:** Server name updated to **🔪 power of Harsh ki starla**. User nicknames modified to **Harsh's slave 🍪**. Channels renamed safely without hiding visibility. {E_ROSE}\n\n⚠️ *Recovery available via: `{p}rnrecovery` or by attaching a backup JSON file.*")
 
     # ==================================
     # 🔄 HYBRID: ADVANCED FILE-BASED RECOVERY SYSTEM
@@ -229,7 +206,6 @@ class Troll(commands.Cog):
 
         backup_data = None
 
-        # --- 🛠️ STEP 1: CHECK FOR ATTACHED JSON FILE OR URL ---
         if ctx.message and ctx.message.attachments:
             attachment = ctx.message.attachments[0]
             if attachment.filename.endswith('.json'):
@@ -251,19 +227,16 @@ class Troll(commands.Cog):
             except Exception as e:
                 return await ctx.send(f"{E_CROSS} **Error:** Failed to load JSON from URL: `{e}`")
 
-        # --- 🛠️ STEP 2: RESTORE FROM ATTACHED FILE DATA ---
         if backup_data:
             status_msg = await ctx.send(f"{E_SWORD} **FILE INJECTION ACTIVE:** Reading `.json` schema data & repairing infrastructure...")
 
-            # Guild Name Reset
             try:
                 if ctx.guild.me.guild_permissions.manage_guild and "server_name" in backup_data:
                     await ctx.guild.edit(name=backup_data["server_name"], reason="JSON Schema Restoration Routine.")
             except Exception: pass
 
-            # Channels Name Restoration from JSON mapping
             if ctx.guild.me.guild_permissions.manage_channels and "categories" in backup_data:
-                nuked_channels = [c for c in ctx.guild.channels if "nuked-by-starla" in c.name.lower()]
+                nuked_channels = [c for c in ctx.guild.channels if "nuked-by-harsh" in c.name.lower()]
                 
                 backup_channel_names = []
                 for cat in backup_data["categories"]:
@@ -274,19 +247,16 @@ class Troll(commands.Cog):
                     if idx < len(backup_channel_names):
                         try:
                             await channel.edit(name=backup_channel_names[idx], reason="JSON Backup Sync")
-                            if ctx.guild.me.guild_permissions.manage_permissions:
-                                await channel.set_permissions(ctx.guild.default_role, view_channel=True)
                         except Exception: pass
 
-            await status_msg.edit(content=f"{E_GREENTICK} **JSON Template Restoration Complete:** Server structure synced and verified with the injected backup file configuration!")
+            await status_msg.edit(content=f"{E_GREENTICK} **JSON Template Restoration Complete:** Server structure synced and verified!")
             return
 
-        # --- 🛠️ STEP 3: FALLBACK TO CACHED RAM MEMORY (OLD METHOD) ---
         guild_backup = self.backups.get(ctx.guild.id)
         if not guild_backup:
             return await ctx.send(f"{E_DOT} **Restoration Refused:** No cached state backup located for this server. Please upload/attach a backup `.json` file!")
 
-        status_msg = await ctx.send(f"{E_SWORD} **DECRYPTION SEQUENCE RUNNING:** Booting system safe state registries from RAM cache...")
+        status_msg = await ctx.send(f"{E_SWORD} **DECRYPTION SEQUENCE RUNNING:** Restoring system state from RAM cache...")
 
         if guild_backup["voice"] and guild_backup["voice"].is_connected():
             try: await guild_backup["voice"].disconnect(force=True)
@@ -306,8 +276,6 @@ class Troll(commands.Cog):
             for channel, old_name in guild_backup["channels"].items():
                 try: 
                     await channel.edit(name=old_name, reason="Emergency rollback.")
-                    if channel in guild_backup["channel_perms"] and ctx.guild.me.guild_permissions.manage_permissions:
-                        await channel.set_permissions(ctx.guild.default_role, overwrite=guild_backup["channel_perms"][channel])
                 except Exception: pass
 
         try:
@@ -322,7 +290,7 @@ class Troll(commands.Cog):
         except Exception: pass
 
         del self.backups[ctx.guild.id]
-        await status_msg.edit(content=f"{E_GREENTICK} **System Normalized:** Core backup files injected. All structural metadata, channel registries, and user identifiers successfully decrypted and fully restored.")
+        await status_msg.edit(content=f"{E_GREENTICK} **System Normalized:** Core backup files injected. All structural metadata fully restored.")
 
     # ==================================
     # 📡 HYBRID: CONTROLLED SYSTEM FLOOD
@@ -388,18 +356,14 @@ class Troll(commands.Cog):
     # ==================================
     # 🛑 HYBRID: GLOBAL FLOOD ABORT
     # ==================================
-    @commands.hybrid_command(name="trollstop", description="Owner Only: Dispatches a forced termination interrupt to kill all local running cogs.")
+    @commands.hybrid_command(name="trollstop", description="Owner Only: Dispatches a forced termination interrupt across active loops.")
     @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     @app_commands.allowed_installs(guilds=True, users=True)
     @commands.is_owner()
     async def trollstop(self, ctx: commands.Context):
-        await ctx.defer()
-        if self.is_active(ctx.channel.id):
-            self.active[ctx.channel.id] = False
-            await ctx.send(f"{E_CROSS} **Emergency Wipe Active:** All malicious system loop instances have been forcefully killed.")
-        else:
-            await ctx.send(f"{E_DOT} **Internal Check:** Diagnostic logs confirm no active exploit loop cogs are running inside this node.")
+        self.active.clear()
+        await ctx.send(f"{E_GREENTICK} **System Reset:** All active threads and loop operations have been successfully terminated.")
 
 async def setup(bot):
     await bot.add_cog(Troll(bot))
-    
+            

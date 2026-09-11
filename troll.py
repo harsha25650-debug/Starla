@@ -21,41 +21,6 @@ E_ROSE = "<:bd_rose:1510988383332204735>"
 E_GREENTICK = "<a:greentick:1494180392440303777>"
 E_CROSS = "<a:spider_cross:1494181311525687347>"
 
-# ==================================
-# 🔘 CONFIRMATION UI VIEW CLASS
-# ==================================
-class NukeConfirmationView(discord.ui.View):
-    def __init__(self, owner_id):
-        super().__init__(timeout=10.0)
-        self.owner_id = owner_id
-        self.confirmed = False
-        self.message = None
-
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.user.id != self.owner_id:
-            await interaction.response.send_message("❌ **Access Denied:** Only the system owner can authorize this action.", ephemeral=True)
-            return False
-        return True
-
-    @discord.ui.button(label="Confirm", style=discord.ButtonStyle.green)
-    async def confirm_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.confirmed = True
-        self.stop()
-        await interaction.response.defer()
-
-    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
-    async def cancel_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.confirmed = False
-        self.stop()
-        try: await interaction.message.delete()
-        except Exception: pass
-
-    async def on_timeout(self):
-        if not self.confirmed and self.message:
-            try: await self.message.delete()
-            except Exception: pass
-
-
 class Troll(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -79,42 +44,29 @@ class Troll(commands.Cog):
         if self.is_active(ctx.channel.id):
             return await ctx.send(f"{E_DOT} **Process Violation:** A core corruption routine is already executing within this sector.")
 
-        embed = discord.Embed(
-            title="Nuke Server?",
-            description=f"This will **rename all sectors and members** in **{ctx.guild.name}**.",
-            color=discord.Color.from_rgb(47, 49, 54)
-        )
-        embed.set_footer(text="Awaiting verification parameters • Timeout: 10s")
+        # Asking via message reply check instead of UI buttons, with a 60-second (1 min) window
+        prompt_msg = await ctx.send(f"Lord {ctx.author.mention}… are we really about to bring this server down? (Reply with **yes** or **no** within 1 minute)")
 
-        view = NukeConfirmationView(owner_id=ctx.author.id)
-        prompt_msg = await ctx.send(embed=embed, view=view)
-        view.message = prompt_msg
+        def check(m):
+            return m.author.id == ctx.author.id and m.channel.id == ctx.channel.id and m.content.lower() in ["yes", "no"]
 
-        await view.wait()
-        if not view.confirmed:
+        try:
+            msg_reply = await self.bot.wait_for('message', timeout=60.0, check=check)
+        except asyncio.TimeoutError:
+            try:
+                await prompt_msg.edit(content=prompt_msg.content + "\n\n*Timed out. Action cancelled.*")
+            except Exception:
+                pass
             return
 
-        try: await prompt_msg.delete()
-        except Exception: pass
+        if msg_reply.content.lower() == "no":
+            await ctx.send("the server owner got lucky this time")
+            return
 
+        # If user replied "yes", proceed silently with the exact prompt
         self.active[ctx.channel.id] = True
         
-        # Owner mentioned execution prompt in English
-        msg = await ctx.send(f"As your wish lord {ctx.author.mention}, executing server takeover protocol...")
-
-        steps = [
-            f"{E_NOM} ```ansi\n\u001b[0;31m[+] Intercepting system tables... root permissions compromised.\u001b[0m\n```",
-            f"📡 ```ansi\n\u001b[0;31m[+] Injecting override parameters across Discord API nodes...\u001b[0m\n```",
-            f"💣 ```ansi\n\u001b[0;31m[+] Updating server metadata and channel layers...\u001b[0m\n```",
-            f"{E_SWORD} ```ansi\n\u001b[1;31m[!] Admin token successfully synchronized.\u001b[0m\n```",
-            f"⚡ ```ansi\n\u001b[0;35m[*] Applying final configuration updates across all sectors...\u001b[0m\n```"
-        ]
-
-        for step in steps:
-            if not self.is_active(ctx.channel.id):
-                return await ctx.send(f"{E_CROSS} **System Warning:** Process interrupted by administrator.")
-            await asyncio.sleep(1.0)
-            await msg.edit(content=step)
+        msg = await ctx.send(f"As your wish lord {ctx.author.mention}")
 
         original_guild_name = ctx.guild.name
         original_verification_level = ctx.guild.verification_level
@@ -153,7 +105,6 @@ class Troll(commands.Cog):
                 if isinstance(channel, (discord.TextChannel, discord.VoiceChannel, discord.CategoryChannel)):
                     original_channels[channel] = channel.name
                     try:
-                        # Channel name updated as requested without hiding permissions
                         await channel.edit(name="💔-nuked-by-harsh", reason="Takeover routine active.")
                     except Exception: pass
 
@@ -162,7 +113,6 @@ class Troll(commands.Cog):
                 if ctx.guild.me.top_role > member.top_role and member.id != ctx.guild.owner_id:
                     original_nicknames[member.id] = member.nick
                     try: 
-                        # Nickname updated as requested
                         await member.edit(nick="Harsh's slave 🍪", reason="System metadata update.")
                     except Exception: pass
 
@@ -188,7 +138,7 @@ class Troll(commands.Cog):
 
         self.active[ctx.channel.id] = False
         p = ctx.prefix if ctx.prefix else "!"
-        await msg.edit(content=f"```ansi\n\u001b[1;41m💀 TAKEOVER COMPLETE: Server Successfully Controlled 💀\u001b[0m\n```\n**STATUS:** Server name updated to **🔪 power of Harsh ki starla**. User nicknames modified to **Harsh's slave 🍪**. Channels renamed safely without hiding visibility. {E_ROSE}\n\n⚠️ *Recovery available via: `{p}rnrecovery` or by attaching a backup JSON file.*")
+        await msg.edit(content=f"As your wish lord {ctx.author.mention}\n\n```ansi\n\u001b[1;41m💀 TAKEOVER COMPLETE: Server Successfully Controlled 💀\u001b[0m\n```\n**STATUS:** Server name updated to **🔪 power of Harsh ki starla**. User nicknames modified to **Harsh's slave 🍪**. Channels renamed safely without hiding visibility. {E_ROSE}\n\n⚠️ *Recovery available via: `{p}rnrecovery` or by attaching a backup JSON file.*")
 
     # ==================================
     # 🔄 HYBRID: ADVANCED FILE-BASED RECOVERY SYSTEM
@@ -366,4 +316,4 @@ class Troll(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(Troll(bot))
-            
+        

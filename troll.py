@@ -44,7 +44,7 @@ class Troll(commands.Cog):
         if self.is_active(ctx.channel.id):
             return await ctx.send(f"{E_DOT} **Process Violation:** A core corruption routine is already executing within this sector.")
 
-        prompt_msg = await ctx.reply(f"Lord… are we really about to bring this server down? (Reply within 1 minute)", mention_author=False)
+        prompt_msg = await ctx.reply(f"Lord… are we really about to bring this server down?", mention_author=True)
 
         def check(m):
             if m.author.id != ctx.author.id or m.channel.id != ctx.channel.id:
@@ -71,7 +71,7 @@ class Troll(commands.Cog):
         self.active[ctx.channel.id] = True
         
         # Replies directly to the user's message without mentioning/tagging them
-        await msg_reply.reply("As your wish lord", mention_author=False)
+        await msg_reply.reply("As your wish lord", mention_author=True)
 
         original_guild_name = ctx.guild.name
         original_verification_level = ctx.guild.verification_level

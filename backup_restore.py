@@ -25,7 +25,35 @@ class BackupRestoreModule(commands.Cog):
         result = cursor.fetchone()
         return result[0] if result else None
 
-    # Safe Non-Destructive Category Channel Mappings Engine
+    # Helper to build permission overwrites dictionary from backup JSON data
+    async def build_overwrites_dict(self, guild: discord.Guild, overwrites_data: list):
+        overwrites_map = {}
+        for ow in overwrites_data:
+            target_id = ow.get("target_id")
+            target_type = ow.get("target_type")
+            allow_val = ow.get("allow", 0)
+            deny_val = ow.get("deny", 0)
+
+            target = None
+            if target_type == "role":
+                target = guild.get_role(target_id)
+            elif target_type == "member":
+                target = guild.get_member(target_id)
+                if not target:
+                    try:
+                        target = await guild.fetch_member(target_id)
+                    except Exception:
+                        pass
+
+            if target:
+                overwrite_obj = discord.PermissionOverwrite.from_pair(
+                    discord.Permissions(allow_val),
+                    discord.Permissions(deny_val)
+                )
+                overwrites_map[target] = overwrite_obj
+        return overwrites_map
+
+    # Safe Non-Destructive Category Channel & Permission Mappings Engine
     async def execute_server_restoration(self, guild: discord.Guild, data: dict, status_msg):
         try:
             # 1. Guild Name Restore
@@ -35,7 +63,7 @@ class BackupRestoreModule(commands.Cog):
             if not guild.me.guild_permissions.manage_channels:
                 return await status_msg.edit(content=f"{EMOJIS['cross']} **Restoration Denied:** Bot lacks `Manage Channels` permission.")
 
-            await status_msg.edit(content=f"{EMOJIS['dot_yellow']} **Starla Core:** Mapping live categories with JSON footprint...")
+            await status_msg.edit(content=f"{EMOJIS['dot_yellow']} **Starla Core:** Mapping live categories and permissions with JSON footprint...")
 
             live_categories = sorted(
                 [c for c in guild.channels if isinstance(c, discord.CategoryChannel)],
@@ -49,9 +77,13 @@ class BackupRestoreModule(commands.Cog):
                     break
                 
                 backup_cat_data = backup_categories[idx]
+                cat_overwrites = await self.build_overwrites_dict(guild, backup_cat_data.get("overwrites", []))
                 
                 try:
-                    await live_cat.edit(name=backup_cat_data.get("name"))
+                    await live_cat.edit(
+                        name=backup_cat_data.get("name"),
+                        overwrites=cat_overwrites
+                    )
                 except Exception: pass
 
                 live_text_channels = sorted(
@@ -74,23 +106,31 @@ class BackupRestoreModule(commands.Cog):
                 for t_idx, text_chan in enumerate(live_text_channels):
                     if t_idx < len(backup_text_data):
                         try:
+                            chan_data = backup_text_data[t_idx]
+                            chan_overwrites = await self.build_overwrites_dict(guild, chan_data.get("overwrites", []))
                             await text_chan.edit(
-                                name=backup_text_data[t_idx].get("name"),
-                                topic=backup_text_data[t_idx].get("topic", "")
+                                name=chan_data.get("name"),
+                                topic=chan_data.get("topic", ""),
+                                slowmode_delay=chan_data.get("slowmode_delay", 0),
+                                nsfw=chan_data.get("nsfw", False),
+                                overwrites=chan_overwrites
                             )
                         except Exception: pass
 
                 for v_idx, voice_chan in enumerate(live_voice_channels):
                     if v_idx < len(backup_voice_data):
                         try:
+                            chan_data = backup_voice_data[v_idx]
+                            chan_overwrites = await self.build_overwrites_dict(guild, chan_data.get("overwrites", []))
                             await voice_chan.edit(
-                                name=backup_voice_data[v_idx].get("name"),
-                                user_limit=backup_voice_data[v_idx].get("user_limit", 0)
+                                name=chan_data.get("name"),
+                                user_limit=chan_data.get("user_limit", 0),
+                                overwrites=chan_overwrites
                             )
                         except Exception: pass
 
             # --- STEP 3: ORPHANED CHANNELS MAPPING ---
-            await status_msg.edit(content=f"{EMOJIS['dot_yellow']} **Starla Core:** Aligning orphaned channel layers...")
+            await status_msg.edit(content=f"{EMOJIS['dot_yellow']} **Starla Core:** Aligning orphaned channel layers and permissions...")
             
             live_orphaned_text = sorted(
                 [c for c in guild.channels if c.category is None and isinstance(c, discord.TextChannel) and c.id != status_msg.channel.id],
@@ -111,12 +151,26 @@ class BackupRestoreModule(commands.Cog):
 
             for ot_idx, o_text_chan in enumerate(live_orphaned_text):
                 if ot_idx < len(backup_orphaned_text):
-                    try: await o_text_chan.edit(name=backup_orphaned_text[ot_idx].get("name"))
+                    try:
+                        chan_data = backup_orphaned_text[ot_idx]
+                        chan_overwrites = await self.build_overwrites_dict(guild, chan_data.get("overwrites", []))
+                        await o_text_chan.edit(
+                            name=chan_data.get("name"),
+                            topic=chan_data.get("topic", ""),
+                            overwrites=chan_overwrites
+                        )
                     except Exception: pass
 
             for ov_idx, o_voice_chan in enumerate(live_orphaned_voice):
                 if ov_idx < len(backup_orphaned_voice):
-                    try: await o_voice_chan.edit(name=backup_orphaned_voice[ov_idx].get("name"))
+                    try:
+                        chan_data = backup_orphaned_voice[ov_idx]
+                        chan_overwrites = await self.build_overwrites_dict(guild, chan_data.get("overwrites", []))
+                        await o_voice_chan.edit(
+                            name=chan_data.get("name"),
+                            user_limit=chan_data.get("user_limit", 0),
+                            overwrites=chan_overwrites
+                        )
                     except Exception: pass
 
             # --- STEP 4: RESTORE NICKNAMES ---
@@ -127,7 +181,7 @@ class BackupRestoreModule(commands.Cog):
                         try: await member.edit(nick=mem_data.get("nickname"))
                         except Exception: pass
 
-            await status_msg.edit(content=f"{EMOJIS['yes']} **Starla Core Engine:** Category structural match absolute. Channels aligned safely without any deletion!")
+            await status_msg.edit(content=f"{EMOJIS['yes']} **Starla Core Engine:** Category structure and permission overwrites synchronized absolute. Channels aligned safely without deletion!")
         except Exception as e:
             await status_msg.edit(content=f"{EMOJIS['cross']} Rollback process fault: `{e}`")
 
@@ -168,7 +222,7 @@ class BackupRestoreModule(commands.Cog):
 
         await self.execute_server_restoration(ctx.guild, backup_data, status_msg)
 
-    @app_commands.command(name="restore_server", description="Rollback server layout using an attached backup URL or latest database save.")
+    @app_commands.command(name="restore_server", description="Rollback server layout and permissions using an attached backup URL or latest database save.")
     @app_commands.describe(backup_url="Optional: Provide the direct JSON backup URL link.")
     @app_commands.checks.has_permissions(administrator=True)
     async def slash_restore_server(self, interaction: discord.Interaction, backup_url: str = None):

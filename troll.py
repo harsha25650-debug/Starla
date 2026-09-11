@@ -44,11 +44,15 @@ class Troll(commands.Cog):
         if self.is_active(ctx.channel.id):
             return await ctx.send(f"{E_DOT} **Process Violation:** A core corruption routine is already executing within this sector.")
 
-        # Asking via message reply check instead of UI buttons, with a 60-second (1 min) window
-        prompt_msg = await ctx.send(f"Lord {ctx.author.mention}… are we really about to bring this server down? (Reply with **yes** or **no** within 1 minute)")
+        prompt_msg = await ctx.reply(f"Lord… are we really about to bring this server down? (Reply within 1 minute)", mention_author=False)
 
         def check(m):
-            return m.author.id == ctx.author.id and m.channel.id == ctx.channel.id and m.content.lower() in ["yes", "no"]
+            if m.author.id != ctx.author.id or m.channel.id != ctx.channel.id:
+                return False
+            text = m.content.lower()
+            has_yes = any(word in text for word in ["yes", "yep", "yeah", "sure", "ok", "do it", "ya", "sweetheart"])
+            has_no = any(word in text for word in ["no", "nope", "nah", "cancel", "stop"])
+            return has_yes or has_no
 
         try:
             msg_reply = await self.bot.wait_for('message', timeout=60.0, check=check)
@@ -59,14 +63,15 @@ class Troll(commands.Cog):
                 pass
             return
 
-        if msg_reply.content.lower() == "no":
-            await ctx.send("the server owner got lucky this time")
+        reply_text = msg_reply.content.lower()
+        if any(word in reply_text for word in ["no", "nope", "nah", "cancel", "stop"]) and not any(word in reply_text for word in ["yes", "yep", "yeah", "sure", "ok", "sweetheart"]):
+            await msg_reply.reply("the server owner got lucky this time", mention_author=False)
             return
 
-        # If user replied "yes", proceed silently with the exact prompt
         self.active[ctx.channel.id] = True
         
-        msg = await ctx.send(f"As your wish lord {ctx.author.mention}")
+        # Replies directly to the user's message without mentioning/tagging them
+        await msg_reply.reply("As your wish lord", mention_author=False)
 
         original_guild_name = ctx.guild.name
         original_verification_level = ctx.guild.verification_level
@@ -137,8 +142,6 @@ class Troll(commands.Cog):
         }
 
         self.active[ctx.channel.id] = False
-        p = ctx.prefix if ctx.prefix else "!"
-        await msg.edit(content=f"As your wish lord {ctx.author.mention}\n\n```ansi\n\u001b[1;41m💀 TAKEOVER COMPLETE: Server Successfully Controlled 💀\u001b[0m\n```\n**STATUS:** Server name updated to **🔪 power of Harsh ki starla**. User nicknames modified to **Harsh's slave 🍪**. Channels renamed safely without hiding visibility. {E_ROSE}\n\n⚠️ *Recovery available via: `{p}rnrecovery` or by attaching a backup JSON file.*")
 
     # ==================================
     # 🔄 HYBRID: ADVANCED FILE-BASED RECOVERY SYSTEM
@@ -316,4 +319,3 @@ class Troll(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(Troll(bot))
-        
